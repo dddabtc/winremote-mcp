@@ -180,34 +180,34 @@ If pytesseract is not installed, the OCR tool will attempt to use the Windows bu
 - Windows 10/11
 - Python >= 3.10
 
-## Integration
+## Integration & Skills
 
-### OpenClaw
+Ready-to-use skill packages for popular AI platforms:
 
-winremote-mcp integrates with [OpenClaw](https://github.com/openclaw/openclaw) as an MCP server or as a Skill. See [docs/openclaw-integration.md](docs/openclaw-integration.md) for:
+| Platform | Guide | Transport |
+|----------|-------|-----------|
+| [OpenClaw](skill/openclaw/SKILL.md) | Full skill with 40 tools | stdio / streamable-http |
+| [Claude Desktop / Claude Code](skill/claude/README.md) | MCP config for Claude | stdio / streamable-http |
+| [Cursor](skill/cursor/README.md) | `.cursor/mcp.json` config | stdio / streamable-http |
 
-- Step-by-step setup with OpenClaw config
-- Authentication configuration
-- How to package as an OpenClaw Skill
-- Publishing to ClawHub
+### Quick Config (any MCP client)
 
-### Other MCP Clients
-
-Any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect:
-
-**stdio:**
+**Local (stdio):**
 ```json
 {
   "mcpServers": {
     "winremote": {
       "command": "python",
-      "args": ["-m", "winremote"]
+      "args": ["-m", "winremote", "--transport", "stdio"]
     }
   }
 }
 ```
 
-**streamable-http (remote):**
+**Remote (streamable-http):**
+```bash
+# On Windows: python -m winremote
+```
 ```json
 {
   "mcpServers": {
@@ -218,6 +218,8 @@ Any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect:
   }
 }
 ```
+
+See [docs/openclaw-integration.md](docs/openclaw-integration.md) for detailed setup with authentication.
 
 ## Acknowledgments
 
