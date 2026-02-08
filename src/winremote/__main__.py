@@ -1286,7 +1286,7 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
                 auth_line = "[auth ON]" if auth_key else "[no auth]"
-                pad = " " * 20  # align with FastMCP banner
+                pad = " " * 10  # align with uvicorn log text
                 ver_line = f"winremote-mcp v{__version__}"
                 print(
                     "\n"
