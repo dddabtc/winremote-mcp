@@ -1285,14 +1285,17 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
         def filter(self, record):
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
-                auth_status = "🔒 auth enabled" if auth_key else "🔓 no auth"
+                auth_line = "[auth ON]" if auth_key else "[no auth]"
+                pad = " " * 20  # align with FastMCP banner
+                ver_line = f"winremote-mcp v{__version__}"
                 print(
                     "\n"
-                    "  ╔═══════════════════════════════════════╗\n"
-                    f"  ║  winremote-mcp v{__version__:<22s}║\n"
-                    "  ║  by dddabtc                           ║\n"
-                    f"  ║  {auth_status:<38s}║\n"
-                    "  ╚═══════════════════════════════════════╝\n",
+                    f"{pad}+----------------------------------+\n"
+                    f"{pad}|  {ver_line:<32s}|\n"
+                    f"{pad}|  by dddabtc                      |\n"
+                    f"{pad}|  github.com/dddabtc              |\n"
+                    f"{pad}|  {auth_line:<32s}|\n"
+                    f"{pad}+----------------------------------+\n",
                     flush=True,
                 )
             return True
