@@ -73,7 +73,7 @@ Clients must include `Authorization: Bearer my-secret-key` header. The `/health`
 ### Health check
 ```bash
 curl http://localhost:8090/health
-# {"status":"ok","version":"0.3.0"}
+# {"status":"ok","version":"0.4.0"}
 ```
 
 ### Auto-start (Windows scheduled task)
@@ -111,7 +111,16 @@ winremote-mcp uninstall
 }
 ```
 
-## What's New in v0.3.0
+## What's New in v0.4.0
+
+- **Error Resilience**: All 40 tools wrapped with try/except — errors return helpful messages instead of crashing the server
+- **Concurrency Control**: Tools categorized into 5 groups (desktop/file/query/shell/network). Desktop tools (mouse, keyboard, screenshot) are exclusive — only one at a time. Other categories allow parallel execution.
+- **Task Management**: Every tool call returns a `[task:id]` prefix. Three new management tools:
+  - `CancelTask(task_id)` — cancel a running or pending task
+  - `GetTaskStatus(task_id)` — get task details or list recent tasks
+  - `GetRunningTasks()` — list all currently active tasks
+
+### v0.3.0
 
 - **API Key Authentication**: `--auth-key` CLI option or `WINREMOTE_AUTH_KEY` env var, Bearer token on all endpoints (except /health)
 - **Multi-monitor Snapshot**: `monitor` param to capture specific screens
@@ -175,6 +184,9 @@ winremote-mcp uninstall
 | OCR | Extract text from screen via OCR (pytesseract or Windows built-in) |
 | ScreenRecord | Record screen activity as animated GIF |
 | AnnotatedSnapshot | Screenshot with numbered labels on interactive elements |
+| CancelTask | Cancel a running or pending task by ID |
+| GetTaskStatus | Get task details or list recent task history |
+| GetRunningTasks | List all currently active (running/pending) tasks |
 
 ### OCR (optional dependency)
 

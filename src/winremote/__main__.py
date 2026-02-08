@@ -22,6 +22,7 @@ except ImportError:
 from starlette.responses import JSONResponse
 
 from winremote import __version__, desktop, network, ocr, process_mgr, recording, registry, services
+from winremote.taskmanager import manager as task_manager
 
 load_dotenv()
 
@@ -1244,6 +1245,80 @@ def AnnotatedSnapshot(
         ]
     except Exception as e:
         return [TextContent(type="text", text=f"AnnotatedSnapshot error: {e}")]
+
+
+# ================================ Task Management ================================
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+def CancelTask(task_id: str) -> str:
+    """Cancel a running or pending task by its task ID.
+
+    Args:
+        task_id: The task ID returned when the tool was invoked (e.g. from [task:abc123]).
+    """
+    result = task_manager.cancel_task(task_id)
+    if "error" in result:
+        return f"Cancel failed: {result['error']}"
+    return f"Cancelled task {task_id} ({result['tool_name']})"
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+def GetTaskStatus(task_id: str = "") -> str:
+    """Get status of a specific task or list recent tasks.
+
+    Args:
+        task_id: If provided, get status of this task. If empty, list recent tasks.
+    """
+    import json
+
+    if task_id:
+        info = task_manager.get_task(task_id)
+        if info is None:
+            return f"Task {task_id} not found"
+        return json.dumps(info, indent=2)
+    tasks = task_manager.list_tasks()
+    if not tasks:
+        return "No tasks in history."
+    lines = ["Recent tasks:"]
+    for t in tasks[:20]:
+        dur = f" ({t['duration']}s)" if t["duration"] is not None else ""
+        err = f" — {t['error']}" if t.get("error") else ""
+        lines.append(f"  [{t['task_id']}] {t['tool_name']} → {t['status']}{dur}{err}")
+    return "\n".join(lines)
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+def GetRunningTasks() -> str:
+    """List all currently running and pending tasks."""
+
+    running = task_manager.list_tasks("running")
+    pending = task_manager.list_tasks("pending")
+    all_active = running + pending
+    if not all_active:
+        return "No active tasks."
+    lines = [f"Active tasks ({len(all_active)}):"]
+    for t in all_active:
+        dur = f" ({t['duration']}s)" if t["duration"] is not None else ""
+        lines.append(f"  [{t['task_id']}] {t['tool_name']} [{t['category']}] {t['status']}{dur}")
+    return "\n".join(lines)
+
+
+# ====================== Apply task manager wrapping ========================
+
+
+def _wrap_all_tools():
+    """Wrap all registered MCP tools with task manager for error resilience + concurrency."""
+    # Skip wrapping the task management tools themselves
+    skip = {"CancelTask", "GetTaskStatus", "GetRunningTasks"}
+    for name, tool in mcp._tool_manager._tools.items():
+        if name in skip:
+            continue
+        original_fn = tool.fn
+        tool.fn = task_manager.wrap_sync_tool(name, original_fn)
+
+
+_wrap_all_tools()
 
 
 # ================================== CLI ====================================
