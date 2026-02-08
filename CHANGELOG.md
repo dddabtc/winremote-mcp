@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-08
+
+### Added
+
+- **API Key Authentication**: `--auth-key` CLI option (or `WINREMOTE_AUTH_KEY` env var) to require Bearer token on all MCP requests. `/health` remains public.
+- **Multi-Monitor Snapshot**: New `monitor` parameter (0=all, 1/2/3=specific) with `all_screens=True` support.
+- **Registry Tools**: `RegRead` and `RegWrite` tools for Windows Registry operations (HKLM, HKCU, HKCR, HKU, HKCC).
+- **Service Management**: `ServiceList`, `ServiceStart`, `ServiceStop` tools via PowerShell.
+- **Scheduled Task Management**: `TaskList`, `TaskCreate`, `TaskDelete` tools via schtasks/PowerShell.
+- **Network Tools**: `Ping` (subprocess), `PortCheck` (socket), `NetConnections` (psutil).
+- **Binary File Transfer**: `FileDownload` (returns base64) and `FileUpload` (writes from base64).
+- **Windows Event Log**: `EventLog` tool to read System/Application/Security logs with level filtering.
+
 ## [0.2.0] - 2025-02-08
 
 ### Added
@@ -21,4 +34,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transport options: stdio (default) and streamable-http
 - Better pywin32 error reporting with explicit messages
 
+[0.3.0]: https://github.com/dddabtc/winremote-mcp/releases/tag/v0.3.0
 [0.2.0]: https://github.com/dddabtc/winremote-mcp/releases/tag/v0.2.0

@@ -133,9 +133,36 @@ def get_interactive_elements() -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def take_screenshot(quality: int = 75, max_width: int = 1920) -> str:
-    """Capture full screen, return base64 JPEG. Resizes if wider than max_width."""
-    img = ImageGrab.grab()
+def _get_monitor_bbox(monitor: int) -> tuple[int, int, int, int] | None:
+    """Get bounding box for a specific monitor (1-indexed). Returns None for all monitors."""
+    if monitor <= 0:
+        return None  # all monitors
+    try:
+        if HAS_WIN32:
+            monitors = win32api.EnumDisplayMonitors()
+            if monitor <= len(monitors):
+                _hmon, _hdc, rect = monitors[monitor - 1]
+                return (rect[0], rect[1], rect[2], rect[3])
+            raise IndexError(f"Monitor {monitor} not found (have {len(monitors)})")
+        else:
+            raise RuntimeError("pywin32 needed for specific monitor selection")
+    except Exception:
+        raise
+
+
+def take_screenshot(quality: int = 75, max_width: int = 1920, monitor: int = 0) -> str:
+    """Capture screen, return base64 JPEG. Resizes if wider than max_width.
+
+    Args:
+        quality: JPEG quality 1-100.
+        max_width: Max width in pixels.
+        monitor: 0=all monitors, 1/2/3=specific monitor.
+    """
+    if monitor == 0:
+        img = ImageGrab.grab(all_screens=True)
+    else:
+        bbox = _get_monitor_bbox(monitor)
+        img = ImageGrab.grab(bbox=bbox)
     # Resize if needed
     if img.width > max_width:
         ratio = max_width / img.width

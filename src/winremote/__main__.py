@@ -21,7 +21,7 @@ except ImportError:
 
 from starlette.responses import JSONResponse
 
-from winremote import __version__, desktop, process_mgr
+from winremote import __version__, desktop, network, process_mgr, registry, services
 
 load_dotenv()
 
@@ -32,7 +32,8 @@ mcp = FastMCP(
     "winremote-mcp",
     instructions=(
         "Windows Remote MCP Server. Provides desktop control, window management, "
-        "shell execution, file operations, and system management tools for a Windows machine."
+        "shell execution, file operations, network tools, registry, services, "
+        "and system management tools for a Windows machine."
     ),
 )
 
@@ -79,6 +80,7 @@ def Snapshot(
     use_vision: bool | str = True,
     quality: int = 75,
     max_width: int = 1920,
+    monitor: int = 0,
 ) -> list:
     """Capture desktop screenshot, window list, and interactive UI elements.
 
@@ -86,6 +88,7 @@ def Snapshot(
         use_vision: Include screenshot image (default True).
         quality: JPEG quality 1-100 (default 75). Lower = smaller.
         max_width: Max image width in pixels (default 1920). Resized keeping aspect ratio.
+        monitor: Monitor to capture. 0=all monitors (default), 1/2/3=specific monitor.
 
     Returns a list containing:
     - Screenshot image as JPEG (if use_vision=True)
@@ -97,7 +100,7 @@ def Snapshot(
 
         # Screenshot
         if use_vision:
-            b64 = desktop.take_screenshot(quality=quality, max_width=max_width)
+            b64 = desktop.take_screenshot(quality=quality, max_width=max_width, monitor=monitor)
             parts.append(ImageContent(type="image", data=b64, mimeType="image/jpeg"))
 
         # Window list
@@ -586,7 +589,7 @@ def Scrape(url: str) -> str:
 
         from markdownify import markdownify
 
-        req = urllib.request.Request(url, headers={"User-Agent": "winremote-mcp/0.2"})
+        req = urllib.request.Request(url, headers={"User-Agent": "winremote-mcp/0.3"})
         with urllib.request.urlopen(req, timeout=15) as resp:
             html = resp.read().decode("utf-8", errors="replace")
         md = markdownify(html, heading_style="ATX", strip=["script", "style"])
@@ -751,6 +754,311 @@ def FileSearch(pattern: str, path: str = ".", recursive: bool | str = True, limi
         return f"FileSearch error: {e}"
 
 
+# ========================== FILE TRANSFER (BINARY) =========================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="FileDownload",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def FileDownload(path: str) -> str:
+    """Download a file as base64-encoded content. Use for binary files.
+
+    Args:
+        path: File path to download.
+    """
+    try:
+        p = Path(path)
+        if not p.exists():
+            return f"File not found: {path}"
+        data = p.read_bytes()
+        b64 = base64.b64encode(data).decode()
+        return f"base64:{len(data)}bytes:{b64}"
+    except Exception as e:
+        return f"FileDownload error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="FileUpload",
+        destructiveHint=True,
+        openWorldHint=False,
+    )
+)
+def FileUpload(path: str, data_base64: str) -> str:
+    """Upload a file from base64-encoded content. Use for binary files.
+
+    Args:
+        path: Destination file path.
+        data_base64: Base64-encoded file content.
+    """
+    try:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data = base64.b64decode(data_base64)
+        p.write_bytes(data)
+        return f"Written {len(data)} bytes to {path}"
+    except Exception as e:
+        return f"FileUpload error: {e}"
+
+
+# ============================== REGISTRY ===================================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="RegRead",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def RegRead(key: str, value_name: str) -> str:
+    """Read a Windows registry value.
+
+    Args:
+        key: Registry key path, e.g. "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion".
+        value_name: Name of the value to read.
+    """
+    try:
+        return registry.reg_read(key, value_name)
+    except Exception as e:
+        return f"RegRead error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="RegWrite",
+        destructiveHint=True,
+        openWorldHint=False,
+    )
+)
+def RegWrite(key: str, value_name: str, data: str, reg_type: str = "REG_SZ") -> str:
+    """Write a Windows registry value.
+
+    Args:
+        key: Registry key path, e.g. "HKCU\\SOFTWARE\\MyApp".
+        value_name: Name of the value to write.
+        data: Value data. For REG_DWORD/REG_QWORD pass as string number. For REG_MULTI_SZ use | separator.
+        reg_type: Registry type: REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD, REG_BINARY, REG_MULTI_SZ.
+    """
+    try:
+        return registry.reg_write(key, value_name, data, reg_type)
+    except Exception as e:
+        return f"RegWrite error: {e}"
+
+
+# ============================= SERVICES ====================================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="ServiceList",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def ServiceList(filter: str = "") -> str:
+    """List Windows services.
+
+    Args:
+        filter: Filter by service name or display name (substring match).
+    """
+    try:
+        return services.service_list(filter)
+    except Exception as e:
+        return f"ServiceList error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="ServiceStart",
+        destructiveHint=True,
+        openWorldHint=False,
+    )
+)
+def ServiceStart(name: str) -> str:
+    """Start a Windows service.
+
+    Args:
+        name: Service name.
+    """
+    try:
+        return services.service_start(name)
+    except Exception as e:
+        return f"ServiceStart error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="ServiceStop",
+        destructiveHint=True,
+        openWorldHint=False,
+    )
+)
+def ServiceStop(name: str) -> str:
+    """Stop a Windows service.
+
+    Args:
+        name: Service name.
+    """
+    try:
+        return services.service_stop(name)
+    except Exception as e:
+        return f"ServiceStop error: {e}"
+
+
+# ========================= SCHEDULED TASKS =================================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="TaskList",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def TaskList(filter: str = "") -> str:
+    """List Windows scheduled tasks.
+
+    Args:
+        filter: Filter by task name (substring match).
+    """
+    try:
+        return services.task_list(filter)
+    except Exception as e:
+        return f"TaskList error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="TaskCreate",
+        destructiveHint=True,
+        openWorldHint=False,
+    )
+)
+def TaskCreate(name: str, command: str, schedule: str) -> str:
+    """Create a Windows scheduled task.
+
+    Args:
+        name: Task name.
+        command: Command to execute.
+        schedule: Schedule type (ONCE, DAILY, WEEKLY, MONTHLY, ONSTART, ONLOGON, ONIDLE).
+    """
+    try:
+        return services.task_create(name, command, schedule)
+    except Exception as e:
+        return f"TaskCreate error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="TaskDelete",
+        destructiveHint=True,
+        openWorldHint=False,
+    )
+)
+def TaskDelete(name: str) -> str:
+    """Delete a Windows scheduled task.
+
+    Args:
+        name: Task name.
+    """
+    try:
+        return services.task_delete(name)
+    except Exception as e:
+        return f"TaskDelete error: {e}"
+
+
+# ============================= NETWORK =====================================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Ping",
+        readOnlyHint=True,
+        openWorldHint=True,
+    )
+)
+def Ping(host: str, count: int = 4) -> str:
+    """Ping a host.
+
+    Args:
+        host: Hostname or IP address.
+        count: Number of ping requests (default 4).
+    """
+    try:
+        return network.ping(host, count)
+    except Exception as e:
+        return f"Ping error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="PortCheck",
+        readOnlyHint=True,
+        openWorldHint=True,
+    )
+)
+def PortCheck(host: str, port: int, timeout: float = 5.0) -> str:
+    """Check if a TCP port is open.
+
+    Args:
+        host: Hostname or IP address.
+        port: Port number.
+        timeout: Connection timeout in seconds (default 5).
+    """
+    try:
+        return network.port_check(host, port, timeout)
+    except Exception as e:
+        return f"PortCheck error: {e}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="NetConnections",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def NetConnections(filter: str = "") -> str:
+    """List network connections.
+
+    Args:
+        filter: Filter connections by local/remote address, status, or PID.
+    """
+    try:
+        return network.net_connections(filter)
+    except Exception as e:
+        return f"NetConnections error: {e}"
+
+
+# ============================ EVENT LOG ====================================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="EventLog",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def EventLog(log_name: str = "System", count: int = 20, level: str = "") -> str:
+    """Read Windows Event Log entries.
+
+    Args:
+        log_name: Log name (System, Application, Security, etc.).
+        count: Number of entries to retrieve (default 20).
+        level: Filter by level: critical, error, warning, information, verbose.
+    """
+    try:
+        return services.event_log(log_name, count, level)
+    except Exception as e:
+        return f"EventLog error: {e}"
+
+
 # ================================== CLI ====================================
 
 
@@ -759,11 +1067,28 @@ def FileSearch(pattern: str, path: str = ".", recursive: bool | str = True, limi
 @click.option("--host", default="0.0.0.0")
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
+@click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
 @click.pass_context
-def cli(ctx, transport: str, host: str, port: int, reload: bool):
+def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None):
     """Start the winremote MCP server."""
     if ctx.invoked_subcommand is not None:
         return  # subcommand will handle it
+
+    # Apply auth middleware if key is set
+    if auth_key:
+        from winremote.auth import AuthKeyMiddleware
+
+        # Get the underlying ASGI app and wrap it
+        original_app = mcp._get_app
+        auth_key_value = auth_key
+
+        def patched_get_app(*args, **kwargs):
+            app = original_app(*args, **kwargs)
+            app.add_middleware(AuthKeyMiddleware, auth_key=auth_key_value)
+            return app
+
+        mcp._get_app = patched_get_app
+
     import logging
 
     class BannerFilter(logging.Filter):
@@ -774,12 +1099,13 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool):
         def filter(self, record):
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
+                auth_status = "🔒 auth enabled" if auth_key else "🔓 no auth"
                 print(
                     "\n"
                     "  ╔═══════════════════════════════════════╗\n"
-                    "  ║  winremote-mcp v0.2.0                 ║\n"
+                    f"  ║  winremote-mcp v{__version__:<22s}║\n"
                     "  ║  by dddabtc                           ║\n"
-                    "  ║  https://github.com/dddabtc           ║\n"
+                    f"  ║  {auth_status:<38s}║\n"
                     "  ╚═══════════════════════════════════════╝\n",
                     flush=True,
                 )
