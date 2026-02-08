@@ -1254,45 +1254,11 @@ def AnnotatedSnapshot(
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
-@click.option(
-    "--headless",
-    is_flag=True,
-    default=False,
-    help=(
-        "Register only non-GUI tools (Shell, File*, GetSystemInfo, "
-        "ListProcesses, KillProcess, Scrape, Network, EventLog). "
-        "Useful for Docker/WSL."
-    ),
-)
 @click.pass_context
-def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None, headless: bool):
+def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None):
     """Start the winremote MCP server."""
     if ctx.invoked_subcommand is not None:
         return  # subcommand will handle it
-
-    # In headless mode, remove GUI-dependent tools
-    if headless:
-        _headless_tool_names = {
-            "Shell",
-            "FileRead",
-            "FileWrite",
-            "FileList",
-            "FileSearch",
-            "FileDownload",
-            "FileUpload",
-            "GetSystemInfo",
-            "ListProcesses",
-            "KillProcess",
-            "Scrape",
-            "Ping",
-            "PortCheck",
-            "NetConnections",
-            "EventLog",
-        }
-        # Remove tools not in the headless set
-        to_remove = [name for name in mcp._tool_manager._tools if name not in _headless_tool_names]
-        for name in to_remove:
-            del mcp._tool_manager._tools[name]
 
     # Apply auth middleware if key is set
     if auth_key:

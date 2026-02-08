@@ -24,7 +24,6 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp). Runs **on the Windows m
 - **OCR** — extract text from screen regions (pytesseract or Windows built-in)
 - **Screen Recording** — capture animated GIF of screen activity
 - **Annotated Snapshot** — screenshot with numbered labels on interactive elements
-- **Headless Mode** — `--headless` flag for Docker/WSL (non-GUI tools only)
 - **Hot Reload** — `--reload` flag for development
 - **Auto-Start** — `winremote install` / `winremote uninstall` for Windows scheduled tasks
 
@@ -165,42 +164,6 @@ winremote-mcp uninstall
 | OCR | Extract text from screen via OCR (pytesseract or Windows built-in) |
 | ScreenRecord | Record screen activity as animated GIF |
 | AnnotatedSnapshot | Screenshot with numbered labels on interactive elements |
-
-### Headless mode (Docker / WSL / Linux)
-```bash
-winremote-mcp --headless
-```
-
-In headless mode, only platform-independent tools are registered — no GUI dependencies needed.
-
-## Docker / WSL / Linux Compatibility
-
-Most tools require a Windows desktop environment (pywin32, pyautogui), but several work on **any platform**:
-
-| Works Anywhere | Windows Only |
-|---|---|
-| Shell | Snapshot, Click, Type, Scroll, Move, Shortcut |
-| FileRead, FileWrite, FileList, FileSearch | FocusWindow, MinimizeAll, App |
-| FileDownload, FileUpload | GetClipboard, SetClipboard |
-| GetSystemInfo | Notification, LockScreen |
-| ListProcesses, KillProcess | OCR, ScreenRecord, AnnotatedSnapshot |
-| Scrape | RegRead, RegWrite |
-| Ping, PortCheck, NetConnections | ServiceList, ServiceStart, ServiceStop |
-| EventLog | TaskList, TaskCreate, TaskDelete |
-
-Use the `--headless` flag to start the server with only platform-independent tools. This is ideal for:
-
-- **Docker containers** — run file/shell/network tools without a display
-- **WSL** — manage Windows files and processes from Linux
-- **CI/CD** — integrate as an MCP server in headless pipelines
-
-```bash
-# Docker example
-docker run -p 8090:8090 winremote-mcp --headless --port 8090
-
-# WSL
-winremote-mcp --headless --transport stdio
-```
 
 ### OCR (optional dependency)
 
