@@ -167,13 +167,20 @@ winremote-mcp uninstall
 
 ### OCR (optional dependency)
 
-For the OCR tool, install pytesseract:
+The OCR tool supports two engines: **pytesseract** (recommended) and **Windows built-in OCR** (fallback).
+
+Quick setup:
 ```bash
+# 1. Install Tesseract-OCR engine
+winget install UB-Mannheim.TesseractOCR
+
+# 2. Install Python package
 pip install winremote-mcp[ocr]
-# Also install Tesseract-OCR: https://github.com/UB-Mannheim/tesseract/wiki
 ```
 
-If pytesseract is not installed, the OCR tool will attempt to use the Windows built-in OCR engine (Windows 10+).
+Supports 100+ languages including Chinese (`chi_sim`), Japanese (`jpn`), Korean (`kor`).
+
+📖 **Full guide**: [docs/ocr-setup.md](docs/ocr-setup.md) — installation, language packs, Windows OCR fallback, troubleshooting.
 
 ## Requirements
 
