@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "winremote-mcp"
+version = "0.2.0"
+description = "Windows Remote MCP Server - control Windows desktops via MCP protocol"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "winremote contributors" }]
+keywords = ["mcp", "windows", "remote", "automation", "desktop"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment",
+]
+dependencies = [
+    "fastmcp>=2.0.0",
+    "pyautogui>=0.9.54",
+    "psutil>=5.9.0",
+    "pywin32>=306",
+    "Pillow>=10.0.0",
+    "click>=8.0.0",
+    "python-dotenv>=1.0.0",
+    "thefuzz[speedup]>=0.20.0",
+    "tabulate>=0.9.0",
+    "markdownify>=0.13.0",
+]
+
+[project.scripts]
+winremote-mcp = "winremote.__main__:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/winremote"]
