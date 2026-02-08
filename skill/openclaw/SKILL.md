@@ -13,7 +13,10 @@ Control a Windows machine remotely via MCP protocol. 40 tools for desktop automa
 ```bash
 pip install winremote-mcp
 python -m winremote
-# Server starts on http://0.0.0.0:8090/mcp
+# Server starts on http://127.0.0.1:8090/mcp (local only)
+
+# For remote access:
+python -m winremote --host 0.0.0.0
 ```
 
 **With authentication (recommended):**

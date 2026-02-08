@@ -1326,7 +1326,7 @@ _wrap_all_tools()
 
 @click.group(invoke_without_command=True)
 @click.option("--transport", default="streamable-http", type=click.Choice(["stdio", "streamable-http"]))
-@click.option("--host", default="0.0.0.0")
+@click.option("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1; use 0.0.0.0 for remote access)")
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
@@ -1362,18 +1362,22 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
                 auth_line = "[auth ON]" if auth_key else "[no auth]"
+                bind_line = f"[{host}:{port}]"
                 pad = " " * 10  # align with uvicorn log text
                 ver_line = f"winremote-mcp v{__version__}"
-                print(
-                    "\n"
-                    f"{pad}+----------------------------------+\n"
-                    f"{pad}|  {ver_line:<32s}|\n"
-                    f"{pad}|  by dddabtc                      |\n"
-                    f"{pad}|  github.com/dddabtc              |\n"
-                    f"{pad}|  {auth_line:<32s}|\n"
-                    f"{pad}+----------------------------------+\n",
-                    flush=True,
-                )
+                lines = [
+                    f"{pad}+----------------------------------+",
+                    f"{pad}|  {ver_line:<32s}|",
+                    f"{pad}|  by dddabtc                      |",
+                    f"{pad}|  github.com/dddabtc              |",
+                    f"{pad}|  {auth_line:<32s}|",
+                    f"{pad}|  {bind_line:<32s}|",
+                    f"{pad}+----------------------------------+",
+                ]
+                if host == "0.0.0.0" and not auth_key:
+                    lines.append(f"{pad}  WARNING: open to network without auth!")
+                    lines.append(f"{pad}  Use --auth-key for security.")
+                print("\n" + "\n".join(lines) + "\n", flush=True)
             return True
 
     if transport == "stdio":
