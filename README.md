@@ -73,7 +73,7 @@ Clients must include `Authorization: Bearer my-secret-key` header. The `/health`
 ### Health check
 ```bash
 curl http://localhost:8090/health
-# {"status":"ok","version":"0.2.0"}
+# {"status":"ok","version":"0.3.0"}
 ```
 
 ### Auto-start (Windows scheduled task)
@@ -111,14 +111,25 @@ winremote-mcp uninstall
 }
 ```
 
-## What's New in v0.2.0
+## What's New in v0.3.0
 
-- **Snapshot compression**: Returns JPEG instead of PNG. Configurable `quality` (default 75) and `max_width` (default 1920) params. Significantly reduces image size.
-- **Health endpoint**: `GET /health` returns JSON status — useful for monitoring and load balancers.
-- **Shell cwd parameter**: Optional `cwd` param to run commands in a specific directory.
-- **Better pywin32 error reporting**: Explicit error messages when pywin32 is missing instead of silent failures.
-- **Hot reload**: `--reload` flag passes through to uvicorn for development.
-- **Install/uninstall commands**: `winremote install` creates a Windows scheduled task for auto-start on boot.
+- **API Key Authentication**: `--auth-key` CLI option or `WINREMOTE_AUTH_KEY` env var, Bearer token on all endpoints (except /health)
+- **Multi-monitor Snapshot**: `monitor` param to capture specific screens
+- **AnnotatedSnapshot**: Screenshot with red numbered labels on clickable UI elements
+- **OCR**: Extract text from screen — pytesseract (recommended) + Windows built-in fallback. See [docs/ocr-setup.md](docs/ocr-setup.md)
+- **ScreenRecord**: Capture screen as animated GIF (2-10 seconds)
+- **Registry**: RegRead, RegWrite
+- **Services**: ServiceList, ServiceStart, ServiceStop
+- **Scheduled Tasks**: TaskList, TaskCreate, TaskDelete
+- **Network**: Ping, PortCheck, NetConnections (with `limit` param)
+- **File Transfer**: FileDownload, FileUpload (binary via base64)
+- **Event Log**: Windows Event Log viewer with level filtering
+- **Skill Packages**: Ready-to-use configs for [OpenClaw](skill/openclaw/SKILL.md), [Claude](skill/claude/README.md), [Cursor](skill/cursor/README.md)
+
+### v0.2.0
+
+- Snapshot JPEG compression (quality + max_width params)
+- Health endpoint, Shell cwd param, hot reload, install/uninstall commands
 
 ## Tools
 
