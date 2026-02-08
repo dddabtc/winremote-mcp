@@ -39,7 +39,7 @@ def port_check(host: str, port: int, timeout: float = 5.0) -> str:
         return f"PortCheck error: {e}"
 
 
-def net_connections(filter_str: str = "") -> str:
+def net_connections(filter_str: str = "", limit: int = 50) -> str:
     """List network connections using psutil."""
     try:
         import psutil
@@ -62,7 +62,7 @@ def net_connections(filter_str: str = "") -> str:
 
         if not rows:
             return "No connections found."
-        rows = rows[:100]
+        rows = rows[:limit]
         return tabulate(rows, headers=["Local", "Remote", "Status", "PID"], tablefmt="simple")
     except Exception as e:
         return f"NetConnections error: {e}"
