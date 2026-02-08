@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import psutil
-from thefuzz import fuzz
 from tabulate import tabulate
+from thefuzz import fuzz
 
 
 def list_processes(
@@ -13,7 +13,7 @@ def list_processes(
     limit: int = 30,
 ) -> str:
     """List running processes with CPU/memory usage.
-    
+
     Args:
         filter_name: Fuzzy filter by process name.
         sort_by: Sort key — 'cpu', 'memory', or 'name'.
@@ -28,13 +28,15 @@ def list_processes(
                 if fuzz.partial_ratio(filter_name.lower(), name.lower()) < 60:
                     continue
             mem_mb = (info["memory_info"].rss / 1048576) if info["memory_info"] else 0
-            procs.append({
-                "PID": info["pid"],
-                "Name": name,
-                "CPU%": info["cpu_percent"] or 0,
-                "Mem(MB)": round(mem_mb, 1),
-                "Status": info["status"],
-            })
+            procs.append(
+                {
+                    "PID": info["pid"],
+                    "Name": name,
+                    "CPU%": info["cpu_percent"] or 0,
+                    "Mem(MB)": round(mem_mb, 1),
+                    "Status": info["status"],
+                }
+            )
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 

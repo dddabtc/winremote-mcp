@@ -6,19 +6,18 @@ import base64
 import ctypes
 import io
 import locale
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import pyautogui
 
 # Win32 imports (will fail on non-Windows — caught at tool level)
 try:
-    import win32gui
-    import win32con
-    import win32api
-    import win32process
+    import win32api  # noqa: F401
     import win32clipboard
+    import win32con
+    import win32gui
+    import win32process
 
     HAS_WIN32 = True
 except ImportError:
@@ -26,10 +25,10 @@ except ImportError:
 
 from PIL import ImageGrab
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _tobool(v: bool | str) -> bool:
     """Handle MCP's bool-as-string quirk."""
@@ -49,6 +48,7 @@ def _get_system_language() -> str:
 # ---------------------------------------------------------------------------
 # Window info
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class WindowInfo:
@@ -111,12 +111,14 @@ def get_interactive_elements() -> list[dict]:
         except Exception:
             return True
         idx[0] += 1
-        elements.append({
-            "index": idx[0],
-            "class": cls,
-            "text": text,
-            "rect": {"left": rect[0], "top": rect[1], "right": rect[2], "bottom": rect[3]},
-        })
+        elements.append(
+            {
+                "index": idx[0],
+                "class": cls,
+                "text": text,
+                "rect": {"left": rect[0], "top": rect[1], "right": rect[2], "bottom": rect[3]},
+            }
+        )
         return True
 
     try:
@@ -129,6 +131,7 @@ def get_interactive_elements() -> list[dict]:
 # ---------------------------------------------------------------------------
 # Screenshot
 # ---------------------------------------------------------------------------
+
 
 def take_screenshot(quality: int = 75, max_width: int = 1920) -> str:
     """Capture full screen, return base64 JPEG. Resizes if wider than max_width."""
@@ -150,6 +153,7 @@ def take_screenshot(quality: int = 75, max_width: int = 1920) -> str:
 # Window management
 # ---------------------------------------------------------------------------
 
+
 def focus_window(title: Optional[str] = None, handle: Optional[int] = None) -> str:
     """Bring a window to the foreground. Fuzzy-match title if provided."""
     if not HAS_WIN32:
@@ -160,6 +164,7 @@ def focus_window(title: Optional[str] = None, handle: Optional[int] = None) -> s
         hwnd = handle
     elif title:
         from thefuzz import fuzz
+
         best_score = 0
         for w in enumerate_windows():
             score = fuzz.partial_ratio(title.lower(), w.title.lower())
@@ -194,6 +199,7 @@ def minimize_all() -> str:
 def launch_app(name: str, args: str = "") -> str:
     """Launch application via PowerShell Start-Process."""
     import subprocess
+
     try:
         cmd = f'Start-Process "{name}"'
         if args:
@@ -219,6 +225,7 @@ def resize_window(handle: int, width: int, height: int) -> str:
 # ---------------------------------------------------------------------------
 # Clipboard
 # ---------------------------------------------------------------------------
+
 
 def get_clipboard() -> str:
     if not HAS_WIN32:
@@ -257,6 +264,7 @@ def set_clipboard(text: str) -> str:
 # Lock screen
 # ---------------------------------------------------------------------------
 
+
 def lock_screen() -> str:
     try:
         ctypes.windll.user32.LockWorkStation()
@@ -269,10 +277,12 @@ def lock_screen() -> str:
 # Toast notification
 # ---------------------------------------------------------------------------
 
+
 def show_notification(title: str, message: str) -> str:
     """Show a Windows toast notification via PowerShell."""
     import subprocess
-    ps = f'''
+
+    ps = f"""
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 $template = @"
@@ -287,7 +297,7 @@ $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
 $xml.LoadXml($template)
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("winremote-mcp").Show($toast)
-'''
+"""
     try:
         subprocess.run(["powershell", "-Command", ps], timeout=10, capture_output=True)
         return "Notification shown"

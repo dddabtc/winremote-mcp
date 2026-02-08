@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import base64
-import os
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Optional
 
 import click
 import pyautogui
 from dotenv import load_dotenv
 from fastmcp import FastMCP
-from fastmcp.utilities.types import Image
 from mcp.types import ImageContent, TextContent
+
 try:
     from mcp.types import ToolAnnotations
 except ImportError:
@@ -43,6 +41,7 @@ mcp = FastMCP(
 # Health endpoint
 # ---------------------------------------------------------------------------
 
+
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request):
     return JSONResponse({"status": "ok", "version": __version__})
@@ -51,6 +50,7 @@ async def health_check(request):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _tobool(v: bool | str) -> bool:
     if isinstance(v, bool):
@@ -61,10 +61,7 @@ def _tobool(v: bool | str) -> bool:
 def _check_win32(tool_name: str = "This tool") -> str | None:
     """Return an error string if pywin32 is unavailable, else None."""
     if not desktop.HAS_WIN32:
-        return (
-            f"Error: pywin32 not installed — {tool_name} requires it. "
-            "Run `pip install pywin32` on the Windows host."
-        )
+        return f"Error: pywin32 not installed — {tool_name} requires it. Run `pip install pywin32` on the Windows host."
     return None
 
 
@@ -84,12 +81,12 @@ def Snapshot(
     max_width: int = 1920,
 ) -> list:
     """Capture desktop screenshot, window list, and interactive UI elements.
-    
+
     Args:
         use_vision: Include screenshot image (default True).
         quality: JPEG quality 1-100 (default 75). Lower = smaller.
         max_width: Max image width in pixels (default 1920). Resized keeping aspect ratio.
-    
+
     Returns a list containing:
     - Screenshot image as JPEG (if use_vision=True)
     - Text summary of windows and UI elements
@@ -107,9 +104,7 @@ def Snapshot(
         windows = desktop.enumerate_windows()
         win_lines = [f"**System Language:** {desktop._get_system_language()}", "", "**Windows:**"]
         for w in windows:
-            win_lines.append(
-                f"  [{w.handle}] {w.title} ({w.width}x{w.height} at {w.rect[0]},{w.rect[1]})"
-            )
+            win_lines.append(f"  [{w.handle}] {w.title} ({w.width}x{w.height} at {w.rect[0]},{w.rect[1]})")
 
         # Interactive elements from foreground window
         elements = desktop.get_interactive_elements()
@@ -143,7 +138,7 @@ def Click(
     action: str = "click",
 ) -> str:
     """Mouse click at screen coordinates.
-    
+
     Args:
         x: X coordinate.
         y: Y coordinate.
@@ -179,7 +174,7 @@ def Type(
     press_enter: bool | str = False,
 ) -> str:
     """Type text, optionally at specific coordinates.
-    
+
     Args:
         text: Text to type.
         x: X coordinate (0 = current position).
@@ -217,7 +212,7 @@ def Scroll(
     horizontal: bool | str = False,
 ) -> str:
     """Scroll at a position.
-    
+
     Args:
         amount: Scroll amount (positive=up/right, negative=down/left).
         x: X coordinate (0 = current).
@@ -253,7 +248,7 @@ def Move(
     duration: float = 0.3,
 ) -> str:
     """Move mouse or drag to position.
-    
+
     Args:
         x: Target X.
         y: Target Y.
@@ -284,7 +279,7 @@ def Move(
 )
 def Shortcut(keys: str) -> str:
     """Execute keyboard shortcut.
-    
+
     Args:
         keys: Shortcut string, e.g. 'ctrl+c', 'alt+tab', 'win+e'.
     """
@@ -305,7 +300,7 @@ def Shortcut(keys: str) -> str:
 )
 def Wait(seconds: float = 1.0) -> str:
     """Pause execution.
-    
+
     Args:
         seconds: Seconds to wait.
     """
@@ -325,7 +320,7 @@ def Wait(seconds: float = 1.0) -> str:
 )
 def FocusWindow(title: str = "", handle: int = 0) -> str:
     """Bring a window to the foreground.
-    
+
     Args:
         title: Window title (fuzzy matched).
         handle: Window handle (exact).
@@ -370,7 +365,7 @@ def App(
     height: int = 0,
 ) -> str:
     """Launch, switch to, or resize an application.
-    
+
     Args:
         action: 'launch', 'switch', or 'resize'.
         name: Application name or path (for launch/switch).
@@ -411,7 +406,7 @@ def App(
 )
 def Shell(command: str, timeout: int = 30, cwd: str = "") -> str:
     """Execute a PowerShell command.
-    
+
     Args:
         command: PowerShell command to execute.
         timeout: Timeout in seconds (default 30).
@@ -465,7 +460,7 @@ def GetClipboard() -> str:
 )
 def SetClipboard(text: str) -> str:
     """Set the Windows clipboard text content.
-    
+
     Args:
         text: Text to place on clipboard.
     """
@@ -491,7 +486,7 @@ def ListProcesses(
     limit: int = 30,
 ) -> str:
     """List running processes with CPU and memory usage.
-    
+
     Args:
         filter: Fuzzy filter by process name.
         sort_by: Sort by 'cpu', 'memory', or 'name'.
@@ -512,7 +507,7 @@ def ListProcesses(
 )
 def KillProcess(pid: int = 0, name: str = "") -> str:
     """Kill a process by PID or name.
-    
+
     Args:
         pid: Process ID.
         name: Process name (fuzzy matched).
@@ -547,7 +542,7 @@ def GetSystemInfo() -> str:
 )
 def Notification(title: str = "winremote-mcp", message: str = "") -> str:
     """Show a Windows toast notification.
-    
+
     Args:
         title: Notification title.
         message: Notification body text.
@@ -582,12 +577,13 @@ def LockScreen() -> str:
 )
 def Scrape(url: str) -> str:
     """Fetch URL content and return as markdown.
-    
+
     Args:
         url: URL to fetch.
     """
     try:
         import urllib.request
+
         from markdownify import markdownify
 
         req = urllib.request.Request(url, headers={"User-Agent": "winremote-mcp/0.2"})
@@ -614,7 +610,7 @@ def Scrape(url: str) -> str:
 )
 def FileRead(path: str, encoding: str = "utf-8") -> str:
     """Read file content. Returns base64 for binary files.
-    
+
     Args:
         path: File path.
         encoding: Text encoding (default utf-8). Use 'binary' for base64 output.
@@ -644,7 +640,7 @@ def FileRead(path: str, encoding: str = "utf-8") -> str:
 )
 def FileWrite(path: str, content: str, encoding: str = "utf-8", append: bool | str = False) -> str:
     """Write content to a file.
-    
+
     Args:
         path: File path.
         content: Content to write.
@@ -671,7 +667,7 @@ def FileWrite(path: str, content: str, encoding: str = "utf-8", append: bool | s
 )
 def FileList(path: str = ".", show_hidden: bool | str = False) -> str:
     """List directory contents with size and modification date.
-    
+
     Args:
         path: Directory path.
         show_hidden: Include hidden files/folders.
@@ -721,7 +717,7 @@ def FileList(path: str = ".", show_hidden: bool | str = False) -> str:
 )
 def FileSearch(pattern: str, path: str = ".", recursive: bool | str = True, limit: int = 50) -> str:
     """Search files by name pattern.
-    
+
     Args:
         pattern: Glob pattern (e.g. '*.py', 'report*').
         path: Root directory to search.
@@ -772,17 +768,21 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool):
 
     class BannerFilter(logging.Filter):
         """Inject our banner after uvicorn's 'Application startup complete' log."""
+
         _shown = False
+
         def filter(self, record):
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
-                print("\n"
-                      "  ╔═══════════════════════════════════════╗\n"
-                      "  ║  winremote-mcp v0.2.0                 ║\n"
-                      "  ║  by dddabtc                           ║\n"
-                      "  ║  https://github.com/dddabtc           ║\n"
-                      "  ╚═══════════════════════════════════════╝\n",
-                      flush=True)
+                print(
+                    "\n"
+                    "  ╔═══════════════════════════════════════╗\n"
+                    "  ║  winremote-mcp v0.2.0                 ║\n"
+                    "  ║  by dddabtc                           ║\n"
+                    "  ║  https://github.com/dddabtc           ║\n"
+                    "  ╚═══════════════════════════════════════╝\n",
+                    flush=True,
+                )
             return True
 
     if transport == "stdio":
@@ -799,11 +799,9 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool):
 def install():
     """Create a Windows scheduled task for auto-start."""
     import getpass
+
     username = getpass.getuser()
-    task_cmd = (
-        'schtasks /Create /SC ONSTART /TN "WinRemoteMCP" '
-        f'/TR "python -m winremote" /RU {username} /F'
-    )
+    task_cmd = f'schtasks /Create /SC ONSTART /TN "WinRemoteMCP" /TR "python -m winremote" /RU {username} /F'
     try:
         result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
@@ -832,6 +830,7 @@ def uninstall():
 def health():
     """Print health status JSON."""
     import json
+
     click.echo(json.dumps({"status": "ok", "version": __version__}))
 
 

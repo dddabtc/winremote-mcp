@@ -21,7 +21,7 @@ dependencies = [
     "fastmcp>=2.0.0",
     "pyautogui>=0.9.54",
     "psutil>=5.9.0",
-    "pywin32>=306",
+    "pywin32>=306; sys_platform == 'win32'",
     "Pillow>=10.0.0",
     "click>=8.0.0",
     "python-dotenv>=1.0.0",
