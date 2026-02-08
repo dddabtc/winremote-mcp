@@ -10,11 +10,17 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp). Runs **on the Windows m
 
 ## Features
 
-- **Desktop Control** — screenshot (JPEG compressed), click, type, scroll, keyboard shortcuts
+- **Desktop Control** — screenshot (JPEG compressed, multi-monitor), click, type, scroll, keyboard shortcuts
 - **Window Management** — focus, minimize-all, launch/resize apps
 - **Remote Management** — PowerShell shell (with `cwd`), clipboard, processes, system info, notifications
-- **File Operations** — read, write, list, search files
-- **Health Endpoint** — `GET /health` returns `{"status":"ok","version":"0.2.0"}`
+- **File Operations** — read, write, list, search, binary transfer (base64)
+- **Registry Tools** — read/write Windows Registry values
+- **Service Management** — list, start, stop Windows services
+- **Scheduled Tasks** — list, create, delete scheduled tasks
+- **Network Tools** — ping, port check, network connections
+- **Event Log** — read Windows Event Log with level filtering
+- **API Key Auth** — optional `--auth-key` / `WINREMOTE_AUTH_KEY` for Bearer token authentication
+- **Health Endpoint** — `GET /health` returns `{"status":"ok","version":"0.3.0"}` (always public)
 - **Hot Reload** — `--reload` flag for development
 - **Auto-Start** — `winremote install` / `winremote uninstall` for Windows scheduled tasks
 
@@ -51,6 +57,15 @@ winremote-mcp --transport streamable-http --host 0.0.0.0 --port 8090
 ```bash
 winremote-mcp --reload
 ```
+
+### With authentication
+```bash
+winremote-mcp --auth-key "my-secret-key"
+# or via environment variable
+WINREMOTE_AUTH_KEY="my-secret-key" winremote-mcp
+```
+
+Clients must include `Authorization: Bearer my-secret-key` header. The `/health` endpoint remains public.
 
 ### Health check
 ```bash
@@ -129,11 +144,64 @@ winremote-mcp uninstall
 | FileWrite | Write file content |
 | FileList | List directory contents |
 | FileSearch | Search files by pattern |
+| FileDownload | Download file as base64 (binary) |
+| FileUpload | Upload file from base64 (binary) |
+| RegRead | Read Windows Registry value |
+| RegWrite | Write Windows Registry value |
+| ServiceList | List Windows services |
+| ServiceStart | Start a Windows service |
+| ServiceStop | Stop a Windows service |
+| TaskList | List scheduled tasks |
+| TaskCreate | Create a scheduled task |
+| TaskDelete | Delete a scheduled task |
+| Ping | Ping a host |
+| PortCheck | Check if a TCP port is open |
+| NetConnections | List network connections |
+| EventLog | Read Windows Event Log entries |
 
 ## Requirements
 
 - Windows 10/11
 - Python >= 3.10
+
+## Integration
+
+### OpenClaw
+
+winremote-mcp integrates with [OpenClaw](https://github.com/openclaw/openclaw) as an MCP server or as a Skill. See [docs/openclaw-integration.md](docs/openclaw-integration.md) for:
+
+- Step-by-step setup with OpenClaw config
+- Authentication configuration
+- How to package as an OpenClaw Skill
+- Publishing to ClawHub
+
+### Other MCP Clients
+
+Any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect:
+
+**stdio:**
+```json
+{
+  "mcpServers": {
+    "winremote": {
+      "command": "python",
+      "args": ["-m", "winremote"]
+    }
+  }
+}
+```
+
+**streamable-http (remote):**
+```json
+{
+  "mcpServers": {
+    "winremote": {
+      "type": "streamable-http",
+      "url": "http://<windows-ip>:8090/mcp"
+    }
+  }
+}
+```
 
 ## Acknowledgments
 
