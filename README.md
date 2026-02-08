@@ -1,5 +1,9 @@
 # winremote-mcp
 
+[![CI](https://github.com/dddabtc/winremote-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dddabtc/winremote-mcp/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/winremote-mcp)](https://pypi.org/project/winremote-mcp/)
+[![Python](https://img.shields.io/pypi/pyversions/winremote-mcp)](https://pypi.org/project/winremote-mcp/)
+
 A Windows Remote MCP Server — control Windows desktops via the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 Built with [FastMCP](https://github.com/jlowin/fastmcp). Runs **on the Windows machine** you want to control.
@@ -17,12 +21,17 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp). Runs **on the Windows m
 ## Installation
 
 ```bash
-# With uv (recommended)
-uv pip install .
+# From PyPI (once published)
+pip install winremote-mcp
 
-# Or with pip
+# From source
 pip install .
+
+# With uv
+uv pip install .
 ```
+
+> **PyPI publishing**: This repo uses GitHub Actions with [trusted publishers](https://docs.pypi.org/trusted-publishers/). To enable, configure PyPI trusted publisher for the `dddabtc/winremote-mcp` repo, workflow `publish.yml`, environment `pypi`.
 
 ## Usage
 
@@ -129,6 +138,10 @@ winremote-mcp uninstall
 ## Acknowledgments
 
 Inspired by [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) by CursorTouch. Thanks for the pioneering work on Windows desktop automation via MCP.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
