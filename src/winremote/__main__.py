@@ -1023,14 +1023,15 @@ def PortCheck(host: str, port: int, timeout: float = 5.0) -> str:
         openWorldHint=False,
     )
 )
-def NetConnections(filter: str = "") -> str:
+def NetConnections(filter: str = "", limit: int = 50) -> str:
     """List network connections.
 
     Args:
         filter: Filter connections by local/remote address, status, or PID.
+        limit: Maximum number of connections to return (default 50).
     """
     try:
-        return network.net_connections(filter)
+        return network.net_connections(filter, limit=limit)
     except Exception as e:
         return f"NetConnections error: {e}"
 

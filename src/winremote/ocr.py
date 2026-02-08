@@ -124,15 +124,24 @@ def run_ocr(
     lang: str = "eng",
 ) -> str:
     """Run OCR, trying pytesseract first, then Windows built-in."""
+    errors = []
+    # Try pytesseract first
     try:
         return ocr_pytesseract(left, top, right, bottom, lang=lang)
     except ImportError as e:
-        # Try Windows built-in
-        try:
-            result = ocr_windows_builtin(left, top, right, bottom)
-            if result:
-                return result
-        except Exception:
-            pass
-        # If both fail, return helpful error
-        raise ImportError(str(e))
+        errors.append(f"pytesseract: {e}")
+    except Exception as e:
+        errors.append(f"pytesseract error: {e}")
+
+    # Fallback to Windows built-in OCR
+    try:
+        result = ocr_windows_builtin(left, top, right, bottom)
+        if result and "error" not in result.lower()[:20]:
+            return result
+        if result:
+            errors.append(f"Windows OCR: {result}")
+    except Exception as e:
+        errors.append(f"Windows OCR error: {e}")
+
+    # Both failed
+    return "OCR failed. Errors:\n" + "\n".join(errors)
