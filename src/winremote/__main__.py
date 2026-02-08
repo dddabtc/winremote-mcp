@@ -21,7 +21,7 @@ except ImportError:
 
 from starlette.responses import JSONResponse
 
-from winremote import __version__, desktop, network, process_mgr, registry, services
+from winremote import __version__, desktop, network, ocr, process_mgr, recording, registry, services
 
 load_dotenv()
 
@@ -1059,6 +1059,192 @@ def EventLog(log_name: str = "System", count: int = 20, level: str = "") -> str:
         return f"EventLog error: {e}"
 
 
+# ============================== OCR ========================================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="OCR",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def OCR(
+    left: int = 0,
+    top: int = 0,
+    right: int = 0,
+    bottom: int = 0,
+    lang: str = "eng",
+) -> str:
+    """Extract text from screen using OCR. Captures a region or the full screen.
+
+    Uses pytesseract if available, falls back to Windows built-in OCR engine.
+
+    Args:
+        left: Left edge of region (0 = full screen).
+        top: Top edge of region.
+        right: Right edge of region.
+        bottom: Bottom edge of region.
+        lang: OCR language for pytesseract (default 'eng').
+    """
+    try:
+        region = {}
+        if left or top or right or bottom:
+            region = {"left": left, "top": top, "right": right, "bottom": bottom}
+        text = ocr.run_ocr(**region, lang=lang) if region else ocr.run_ocr(lang=lang)
+        if not text:
+            return "(no text detected)"
+        return text
+    except ImportError as e:
+        return f"OCR error: {e}"
+    except Exception as e:
+        return f"OCR error: {e}"
+
+
+# ========================== SCREEN RECORDING ===============================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="ScreenRecord",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def ScreenRecord(
+    duration: float = 3.0,
+    fps: int = 5,
+    left: int = 0,
+    top: int = 0,
+    right: int = 0,
+    bottom: int = 0,
+    max_width: int = 800,
+) -> list:
+    """Record the screen and return an animated GIF.
+
+    Args:
+        duration: Recording length in seconds (default 3, max 10).
+        fps: Frames per second (default 5, max 10).
+        left: Left edge of capture region (0 = full screen).
+        top: Top edge of capture region.
+        right: Right edge of capture region.
+        bottom: Bottom edge of capture region.
+        max_width: Max width of output GIF (default 800).
+    """
+    try:
+        region = {}
+        if left or top or right or bottom:
+            region = {"left": left, "top": top, "right": right, "bottom": bottom}
+        b64 = recording.record_screen(duration=duration, fps=fps, max_width=max_width, **region)
+        return [
+            ImageContent(type="image", data=b64, mimeType="image/gif"),
+            TextContent(
+                type="text",
+                text=f"Recorded {duration}s at {fps}fps ({len(b64) * 3 // 4 // 1024}KB GIF)",
+            ),
+        ]
+    except Exception as e:
+        return [TextContent(type="text", text=f"ScreenRecord error: {e}")]
+
+
+# ======================== ANNOTATED SNAPSHOT ===============================
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="AnnotatedSnapshot",
+        readOnlyHint=True,
+        openWorldHint=False,
+    )
+)
+def AnnotatedSnapshot(
+    max_elements: int = 30,
+    quality: int = 75,
+    max_width: int = 1920,
+) -> list:
+    """Take a screenshot with numbered labels on interactive UI elements.
+
+    Draws red rectangles and white numbered labels on each interactive element,
+    making it easy for AI agents to identify click targets visually.
+
+    Args:
+        max_elements: Maximum number of elements to annotate (default 30).
+        quality: JPEG quality 1-100 (default 75).
+        max_width: Max image width in pixels (default 1920).
+    """
+    try:
+        import io
+
+        from PIL import ImageDraw, ImageFont, ImageGrab
+
+        # Take screenshot
+        img = ImageGrab.grab()
+        if img.width > max_width:
+            ratio = max_width / img.width
+            img = img.resize((max_width, int(img.height * ratio)))
+
+        # Get interactive elements
+        elements = desktop.get_interactive_elements()
+        if not elements:
+            # Return screenshot with no annotations
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=quality)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return [
+                ImageContent(type="image", data=b64, mimeType="image/jpeg"),
+                TextContent(type="text", text="No interactive elements found."),
+            ]
+
+        draw = ImageDraw.Draw(img)
+
+        # Try to get a font
+        try:
+            font = ImageFont.truetype("arial.ttf", 14)
+        except Exception:
+            font = ImageFont.load_default()
+
+        # Scale factor if image was resized
+        scale = img.width / ImageGrab.grab().width if img.width != ImageGrab.grab().width else 1.0
+
+        element_lines = []
+        for el in elements[:max_elements]:
+            idx = el["index"]
+            r = el["rect"]
+            x1 = int(r["left"] * scale)
+            y1 = int(r["top"] * scale)
+            x2 = int(r["right"] * scale)
+            y2 = int(r["bottom"] * scale)
+
+            # Draw red rectangle
+            draw.rectangle([x1, y1, x2, y2], outline="red", width=2)
+
+            # Draw label background + number
+            label = str(idx)
+            bbox = font.getbbox(label)
+            lw = bbox[2] - bbox[0] + 6
+            lh = bbox[3] - bbox[1] + 4
+            draw.rectangle([x1, y1 - lh - 2, x1 + lw, y1 - 2], fill="red")
+            draw.text((x1 + 3, y1 - lh - 1), label, fill="white", font=font)
+
+            # Build text description
+            cx = (r["left"] + r["right"]) // 2
+            cy = (r["top"] + r["bottom"]) // 2
+            name = el["text"] or el["class"]
+            element_lines.append(f"  [{idx}] {name} — center ({cx},{cy})")
+
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+
+        text_summary = f"**Annotated {len(element_lines)} elements:**\n" + "\n".join(element_lines)
+        return [
+            ImageContent(type="image", data=b64, mimeType="image/jpeg"),
+            TextContent(type="text", text=text_summary),
+        ]
+    except Exception as e:
+        return [TextContent(type="text", text=f"AnnotatedSnapshot error: {e}")]
+
+
 # ================================== CLI ====================================
 
 
@@ -1068,11 +1254,45 @@ def EventLog(log_name: str = "System", count: int = 20, level: str = "") -> str:
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
+@click.option(
+    "--headless",
+    is_flag=True,
+    default=False,
+    help=(
+        "Register only non-GUI tools (Shell, File*, GetSystemInfo, "
+        "ListProcesses, KillProcess, Scrape, Network, EventLog). "
+        "Useful for Docker/WSL."
+    ),
+)
 @click.pass_context
-def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None):
+def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None, headless: bool):
     """Start the winremote MCP server."""
     if ctx.invoked_subcommand is not None:
         return  # subcommand will handle it
+
+    # In headless mode, remove GUI-dependent tools
+    if headless:
+        _headless_tool_names = {
+            "Shell",
+            "FileRead",
+            "FileWrite",
+            "FileList",
+            "FileSearch",
+            "FileDownload",
+            "FileUpload",
+            "GetSystemInfo",
+            "ListProcesses",
+            "KillProcess",
+            "Scrape",
+            "Ping",
+            "PortCheck",
+            "NetConnections",
+            "EventLog",
+        }
+        # Remove tools not in the headless set
+        to_remove = [name for name in mcp._tool_manager._tools if name not in _headless_tool_names]
+        for name in to_remove:
+            del mcp._tool_manager._tools[name]
 
     # Apply auth middleware if key is set
     if auth_key:
