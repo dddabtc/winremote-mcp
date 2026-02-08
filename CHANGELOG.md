@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Network Tools**: `Ping` (subprocess), `PortCheck` (socket), `NetConnections` (psutil).
 - **Binary File Transfer**: `FileDownload` (returns base64) and `FileUpload` (writes from base64).
 - **Windows Event Log**: `EventLog` tool to read System/Application/Security logs with level filtering.
+- **OCR Tool**: `OCR(region, lang)` extracts text from screen regions. Uses pytesseract if available, falls back to Windows built-in OCR engine. `pytesseract` is an optional dependency (`pip install winremote-mcp[ocr]`).
+- **Screen Recording**: `ScreenRecord(duration, fps, region)` captures screen activity as animated GIF. Default 3s at 5fps, max 10s. Returns base64 GIF in ImageContent.
+- **Annotated Snapshot**: `AnnotatedSnapshot(max_elements)` takes a screenshot and overlays numbered red labels on interactive UI elements. Helps AI agents visually identify click targets.
+- **Headless Mode**: `--headless` CLI flag registers only platform-independent tools (Shell, File*, GetSystemInfo, ListProcesses, KillProcess, Scrape, Network, EventLog). Ideal for Docker, WSL, or Linux environments without a display.
 
 ## [0.2.0] - 2025-02-08
 
