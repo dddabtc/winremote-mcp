@@ -51,9 +51,13 @@ winremote-mcp
 uv run winremote-mcp
 ```
 
-### Streamable HTTP transport (default, for remote access)
+### Streamable HTTP transport (default)
 ```bash
-winremote-mcp --transport streamable-http --host 0.0.0.0 --port 8090
+# Local only (default: 127.0.0.1)
+winremote-mcp
+
+# Remote access — explicitly bind to all interfaces
+winremote-mcp --host 0.0.0.0 --port 8090
 ```
 
 ### With hot reload (development)
@@ -250,6 +254,31 @@ Ready-to-use skill packages for popular AI platforms:
 ```
 
 See [docs/openclaw-integration.md](docs/openclaw-integration.md) for detailed setup with authentication.
+
+## Security
+
+**Default bind: `127.0.0.1` (localhost only).** Remote access requires explicit `--host 0.0.0.0`.
+
+When exposing to the network:
+- **Always use `--auth-key`** — without it, anyone on the network has full access
+- **Use a firewall** — restrict port 8090 to trusted IPs only
+- **Consider a reverse proxy** — nginx/caddy with TLS for encrypted connections
+- **Network segmentation** — run on a private VLAN, not the public internet
+
+### Current security model
+
+| Feature | Status |
+|---------|--------|
+| Bearer token auth | ✅ `--auth-key` |
+| Localhost by default | ✅ `127.0.0.1` |
+| Health endpoint public | ✅ No auth needed |
+| Per-tool permissions | ❌ Not yet |
+| Operation audit log | ❌ Not yet |
+| IP allowlist | ❌ Not yet |
+| Rate limiting | ❌ Not yet |
+| Shell sandboxing | ❌ Not yet |
+
+> ⚠️ **This tool is designed for personal use in trusted networks** (e.g., local development, LAN). Do not expose to the public internet without additional security layers.
 
 ## Acknowledgments
 
