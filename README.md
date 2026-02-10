@@ -280,6 +280,41 @@ When exposing to the network:
 
 > ⚠️ **This tool is designed for personal use in trusted networks** (e.g., local development, LAN). Do not expose to the public internet without additional security layers.
 
+## Testing
+
+The project includes a comprehensive test suite with mocked Windows dependencies, so tests run on any platform.
+
+```bash
+# Install test dependencies
+pip install -e ".[test]"
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=winremote --cov-report=term-missing
+
+# Run specific test module
+pytest tests/test_desktop_tools.py
+pytest tests/test_taskmanager.py
+```
+
+### Test Structure
+
+| File | Covers |
+|------|--------|
+| `test_desktop_tools.py` | Click, Type, Scroll, Move, Shortcut, Wait, FocusWindow, MinimizeAll |
+| `test_shell_tools.py` | Shell, Scrape, App |
+| `test_services.py` | ServiceList/Start/Stop, TaskList/Create/Delete, EventLog |
+| `test_network.py` | Ping, PortCheck, NetConnections |
+| `test_taskmanager.py` | TaskManager concurrency, cancellation, wrapping |
+| `test_auth.py` | AuthKeyMiddleware (Bearer token, /health bypass) |
+| `test_registry.py` | Registry read/write, key parsing |
+| `test_helpers.py` | `_tobool`, `_check_win32`, version |
+| `test_integration.py` | MCP tool registration, /health endpoint |
+
+All tests use `unittest.mock` to avoid requiring a real Windows environment.
+
 ## Acknowledgments
 
 Inspired by [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) by CursorTouch. Thanks for the pioneering work on Windows desktop automation via MCP.
