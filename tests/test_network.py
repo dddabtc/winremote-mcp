@@ -5,8 +5,6 @@ from __future__ import annotations
 import socket
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestPing:
     @patch("winremote.network.subprocess.run")

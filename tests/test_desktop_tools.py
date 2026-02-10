@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pyautogui
-import pytest
 
 # The MCP tools are wrapped by task_manager; access the original functions
 # via the module-level function objects before they're decorated, or call .fn
@@ -103,7 +101,7 @@ class TestShortcut:
 
 class TestWait:
     def test_wait(self):
-        with patch("time.sleep") as mock_sleep:
+        with patch("time.sleep") as _mock_sleep:
             result = _call_tool("Wait", seconds=0.01)
             assert "Waited" in result
 

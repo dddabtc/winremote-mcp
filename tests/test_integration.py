@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 
@@ -12,8 +10,8 @@ class TestHealthEndpoint:
 
     def test_health_returns_ok(self):
         """Verify the health endpoint returns status ok."""
-        from winremote.__main__ import mcp
         from winremote import __version__
+        from winremote.__main__ import mcp
 
         # Use Starlette test client on the FastMCP app
         try:

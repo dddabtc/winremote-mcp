@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestTobool:
     def test_bool_values(self):
@@ -24,18 +22,20 @@ class TestTobool:
 
 class TestCheckWin32:
     def test_no_win32(self):
-        from winremote.__main__ import _check_win32
         from unittest.mock import patch
+
         import winremote.__main__ as mod
+        from winremote.__main__ import _check_win32
         with patch.object(mod.desktop, "HAS_WIN32", False):
             result = _check_win32("TestTool")
             assert result is not None
             assert "pywin32" in result
 
     def test_has_win32(self):
-        from winremote.__main__ import _check_win32
         from unittest.mock import patch
+
         import winremote.__main__ as mod
+        from winremote.__main__ import _check_win32
         with patch.object(mod.desktop, "HAS_WIN32", True):
             result = _check_win32("TestTool")
             assert result is None

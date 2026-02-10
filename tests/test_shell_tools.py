@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 def _call_tool(tool_name, **kwargs):
     from winremote.__main__ import mcp

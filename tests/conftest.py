@@ -36,11 +36,12 @@ for mod_name in _mock_modules:
         sys.modules[mod_name] = m
 
 # Now import pyautogui safely
-import pyautogui
+import pyautogui  # noqa: E402
+
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0
 
-import pytest
+import pytest  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
