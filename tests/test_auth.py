@@ -17,10 +17,12 @@ def _make_app(auth_key: str):
     async def health(request):
         return JSONResponse({"status": "ok"})
 
-    app = Starlette(routes=[
-        Route("/", homepage),
-        Route("/health", health),
-    ])
+    app = Starlette(
+        routes=[
+            Route("/", homepage),
+            Route("/health", health),
+        ]
+    )
     app.add_middleware(AuthKeyMiddleware, auth_key=auth_key)
     return app
 

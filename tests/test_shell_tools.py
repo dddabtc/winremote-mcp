@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 def _call_tool(tool_name, **kwargs):
     from winremote.__main__ import mcp
+
     tool = mcp._tool_manager._tools[tool_name]
     return tool.fn(**kwargs)
 
@@ -27,6 +28,7 @@ class TestShell:
     @patch("subprocess.run")
     def test_shell_timeout(self, mock_run):
         import subprocess
+
         mock_run.side_effect = subprocess.TimeoutExpired("cmd", 30)
         result = _call_tool("Shell", command="long", timeout=30)
         assert "timed out" in result.lower()

@@ -75,6 +75,7 @@ class TestTaskManager:
 
     def test_task_duration(self):
         import time
+
         task = self.tm.create_task("Wait")
         task.started_at = time.time() - 2.0
         task.completed_at = time.time()
@@ -83,6 +84,7 @@ class TestTaskManager:
 
     def test_tool_categories(self):
         from winremote.taskmanager import TOOL_CATEGORIES
+
         assert TOOL_CATEGORIES["Click"] == ToolCategory.DESKTOP
         assert TOOL_CATEGORIES["Shell"] == ToolCategory.SHELL
         assert TOOL_CATEGORIES["Ping"] == ToolCategory.NETWORK

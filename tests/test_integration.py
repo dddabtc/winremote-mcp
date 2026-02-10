@@ -16,6 +16,7 @@ class TestHealthEndpoint:
         # Use Starlette test client on the FastMCP app
         try:
             from starlette.testclient import TestClient
+
             app = mcp._get_app()
             client = TestClient(app)
             resp = client.get("/health")
@@ -37,18 +38,49 @@ class TestMCPToolRegistration:
         tool_names = set(mcp._tool_manager._tools.keys())
 
         expected = {
-            "Snapshot", "Click", "Type", "Scroll", "Move", "Shortcut", "Wait",
-            "FocusWindow", "MinimizeAll", "App", "Shell", "Scrape",
-            "GetClipboard", "SetClipboard", "ListProcesses", "KillProcess",
-            "GetSystemInfo", "Notification", "LockScreen",
-            "FileRead", "FileWrite", "FileList", "FileSearch",
-            "FileDownload", "FileUpload",
-            "RegRead", "RegWrite",
-            "ServiceList", "ServiceStart", "ServiceStop",
-            "TaskList", "TaskCreate", "TaskDelete",
-            "EventLog", "Ping", "PortCheck", "NetConnections",
-            "OCR", "ScreenRecord", "AnnotatedSnapshot",
-            "CancelTask", "GetTaskStatus", "GetRunningTasks",
+            "Snapshot",
+            "Click",
+            "Type",
+            "Scroll",
+            "Move",
+            "Shortcut",
+            "Wait",
+            "FocusWindow",
+            "MinimizeAll",
+            "App",
+            "Shell",
+            "Scrape",
+            "GetClipboard",
+            "SetClipboard",
+            "ListProcesses",
+            "KillProcess",
+            "GetSystemInfo",
+            "Notification",
+            "LockScreen",
+            "FileRead",
+            "FileWrite",
+            "FileList",
+            "FileSearch",
+            "FileDownload",
+            "FileUpload",
+            "RegRead",
+            "RegWrite",
+            "ServiceList",
+            "ServiceStart",
+            "ServiceStop",
+            "TaskList",
+            "TaskCreate",
+            "TaskDelete",
+            "EventLog",
+            "Ping",
+            "PortCheck",
+            "NetConnections",
+            "OCR",
+            "ScreenRecord",
+            "AnnotatedSnapshot",
+            "CancelTask",
+            "GetTaskStatus",
+            "GetRunningTasks",
         }
 
         for name in expected:
@@ -56,6 +88,7 @@ class TestMCPToolRegistration:
 
     def test_tool_count(self):
         from winremote.__main__ import mcp
+
         tools = mcp._tool_manager._tools
         # Should have a substantial number of tools
         assert len(tools) >= 30

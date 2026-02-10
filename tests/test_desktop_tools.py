@@ -15,6 +15,7 @@ import pyautogui
 def _call_tool(tool_name, **kwargs):
     """Call an MCP tool by name, going through the task-manager-wrapped fn."""
     from winremote.__main__ import mcp
+
     tool = mcp._tool_manager._tools[tool_name]
     return tool.fn(**kwargs)
 
