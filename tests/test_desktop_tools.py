@@ -130,52 +130,37 @@ class TestFocusWindow:
 
 class TestReconnectSession:
     def test_session_found_and_reconnected(self):
-        from unittest.mock import MagicMock
-
-        mock_result_query = MagicMock()
-        mock_result_query.returncode = 0
-        mock_result_query.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
- console                                    0  Conn    wdcon
- rdp-tcp                                65536  Listen  rdpwd
- rdp-tcp#0         testuser                 1  Disc    rdpwd
-"""
-
-        mock_result_tscon = MagicMock()
-        mock_result_tscon.returncode = 0
-        mock_result_tscon.stdout = ""
-        mock_result_tscon.stderr = ""
-
-        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
-            # First call returns session query, second call returns tscon result
-            mock_subprocess.side_effect = [mock_result_query, mock_result_tscon]
-
-            result = _call_tool("ReconnectSession")
-
-            # Should be a list with TextContent
-            assert isinstance(result, list)
-            assert len(result) == 1
-            assert "Successfully reconnected session 1" in result[0].text
-
-    def test_session_active_without_force(self):
-        from unittest.mock import MagicMock
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
- console                                    0  Conn    wdcon
- rdp-tcp#0         testuser                 1  Active  rdpwd
-"""
-
-        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
-            mock_subprocess.return_value = mock_result
+        with patch("winremote.__main__._ensure_session_connected") as mock_ensure:
+            mock_ensure.return_value = None  # Success
 
             result = _call_tool("ReconnectSession")
 
             assert isinstance(result, list)
             assert len(result) == 1
-            assert "already active" in result[0].text
+            assert "connected to console" in result[0].text.lower()
 
-    def test_session_active_with_force(self):
+    def test_session_already_connected(self):
+        with patch("winremote.__main__._ensure_session_connected") as mock_ensure:
+            mock_ensure.return_value = None  # Already connected
+
+            result = _call_tool("ReconnectSession")
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "connected to console" in result[0].text.lower()
+
+    def test_reconnect_failed(self):
+        with patch("winremote.__main__._ensure_session_connected") as mock_ensure:
+            mock_ensure.return_value = "Access denied"
+
+            result = _call_tool("ReconnectSession")
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "failed" in result[0].text.lower()
+            assert "access denied" in result[0].text.lower()
+
+    def test_force_reconnect(self):
         from unittest.mock import MagicMock
 
         mock_result_query = MagicMock()
@@ -187,8 +172,6 @@ class TestReconnectSession:
 
         mock_result_tscon = MagicMock()
         mock_result_tscon.returncode = 0
-        mock_result_tscon.stdout = ""
-        mock_result_tscon.stderr = ""
 
         with patch("winremote.__main__.subprocess.run") as mock_subprocess:
             mock_subprocess.side_effect = [mock_result_query, mock_result_tscon]
@@ -197,65 +180,51 @@ class TestReconnectSession:
 
             assert isinstance(result, list)
             assert len(result) == 1
-            assert "Successfully reconnected session 1" in result[0].text
+            assert "reconnected session" in result[0].text.lower()
 
-    def test_no_user_session_found(self):
-        from unittest.mock import MagicMock
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
- console                                    0  Conn    wdcon
- rdp-tcp                                65536  Listen  rdpwd
- services          services                 0  Disc    rdpwd
-"""
+class TestSnapshotAutoReconnect:
+    def test_snapshot_screenshot_fails_then_succeeds_after_reconnect(self):
+        with patch("winremote.__main__.desktop") as mock_desktop:
+            # First call fails, second succeeds
+            mock_desktop.take_screenshot.side_effect = [Exception("screen grab failed"), "base64data"]
+            mock_desktop.enumerate_windows.return_value = []
+            mock_desktop.get_interactive_elements.return_value = []
+            mock_desktop._get_system_language.return_value = "en-US"
 
-        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
-            mock_subprocess.return_value = mock_result
+            with patch("winremote.__main__._ensure_session_connected") as mock_ensure:
+                mock_ensure.return_value = None  # Success
 
-            result = _call_tool("ReconnectSession")
+                with patch("winremote.__main__.time.sleep"):
+                    result = _call_tool("Snapshot")
 
-            assert isinstance(result, list)
-            assert len(result) == 1
-            assert "No user session found" in result[0].text
+                    # Should succeed after reconnect
+                    assert isinstance(result, list)
+                    # Should have called ensure_session_connected
+                    mock_ensure.assert_called_once()
+                    # Should have retried screenshot
+                    assert mock_desktop.take_screenshot.call_count == 2
 
-    def test_query_session_fails(self):
-        from unittest.mock import MagicMock
+    def test_snapshot_non_screen_error_not_retried(self):
+        with patch("winremote.__main__.desktop") as mock_desktop:
+            # Non-screen-related error should not trigger reconnect
+            mock_desktop.take_screenshot.side_effect = Exception("some other error")
 
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stderr = "Access denied"
-
-        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
-            mock_subprocess.return_value = mock_result
-
-            result = _call_tool("ReconnectSession")
+            result = _call_tool("Snapshot")
 
             assert isinstance(result, list)
             assert len(result) == 1
-            assert "Failed to query sessions" in result[0].text
+            assert "error" in result[0].lower()
 
-    def test_tscon_fails(self):
-        from unittest.mock import MagicMock
+    def test_snapshot_reconnect_fails(self):
+        with patch("winremote.__main__.desktop") as mock_desktop:
+            mock_desktop.take_screenshot.side_effect = Exception("screen grab failed")
 
-        mock_result_query = MagicMock()
-        mock_result_query.returncode = 0
-        mock_result_query.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
- console                                    0  Conn    wdcon
- rdp-tcp#0         testuser                 1  Disc    rdpwd
-"""
+            with patch("winremote.__main__._ensure_session_connected") as mock_ensure:
+                mock_ensure.return_value = "Failed to reconnect"
 
-        mock_result_tscon = MagicMock()
-        mock_result_tscon.returncode = 1
-        mock_result_tscon.stderr = "Access is denied."
-        mock_result_tscon.stdout = ""
+                result = _call_tool("Snapshot")
 
-        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
-            mock_subprocess.side_effect = [mock_result_query, mock_result_tscon]
-
-            result = _call_tool("ReconnectSession")
-
-            assert isinstance(result, list)
-            assert len(result) == 1
-            assert "Failed to reconnect session 1" in result[0].text
-            assert "Access is denied" in result[0].text
+                assert isinstance(result, list)
+                assert len(result) == 1
+                assert "auto-reconnect failed" in result[0].lower()

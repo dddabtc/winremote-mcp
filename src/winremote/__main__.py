@@ -173,9 +173,17 @@ def Snapshot(
         if use_vision:
             try:
                 b64 = desktop.take_screenshot(quality=quality, max_width=max_width, monitor=monitor)
-            except Exception:
-                _ensure_session_connected()
-                b64 = desktop.take_screenshot(quality=quality, max_width=max_width, monitor=monitor)
+            except Exception as screenshot_error:
+                # Check if a disconnected session is the cause
+                reconnect_result = _ensure_session_connected()
+                if reconnect_result is not None:
+                    # Session wasn't disconnected (or reconnect failed) — not a session issue
+                    return [f"Snapshot error: {screenshot_error}"]
+                # Session was disconnected and reconnected, retry
+                try:
+                    b64 = desktop.take_screenshot(quality=quality, max_width=max_width, monitor=monitor)
+                except Exception as retry_error:
+                    return [f"Snapshot error (after session reconnect): {retry_error}"]
             parts.append(ImageContent(type="image", data=b64, mimeType="image/jpeg"))
 
         # Window list
@@ -1341,9 +1349,31 @@ def AnnotatedSnapshot(
         # Take screenshot (auto-reconnect session if grab fails)
         try:
             img = ImageGrab.grab()
-        except Exception:
-            _ensure_session_connected()
-            img = ImageGrab.grab()
+        except Exception as screenshot_error:
+            # Check if it's likely a session disconnection issue
+            error_msg = str(screenshot_error).lower()
+            if any(x in error_msg for x in ["screen grab failed", "display", "capture", "screenshot"]):
+                reconnect_error = _ensure_session_connected()
+                if reconnect_error is None:
+                    time.sleep(1)  # Wait for session to stabilize
+                    try:
+                        img = ImageGrab.grab()
+                    except Exception as retry_error:
+                        return [
+                            TextContent(
+                                type="text", text=f"AnnotatedSnapshot error (after auto-reconnect retry): {retry_error}"
+                            )
+                        ]
+                else:
+                    return [
+                        TextContent(
+                            type="text",
+                            text=f"AnnotatedSnapshot error: {screenshot_error}. Auto-reconnect failed: {reconnect_error}",
+                        )
+                    ]
+            else:
+                # Not a screen grab error, re-raise
+                raise screenshot_error
         if img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)))
