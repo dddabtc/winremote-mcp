@@ -180,15 +180,12 @@ winremote-mcp uninstall
 
 ## How It Works
 
-```
-┌─────────────────┐    ┌────────────────────┐    ┌─────────────────┐
-│   MCP Client    │    │   WinRemote MCP    │    │  Windows APIs   │
-│   (Claude/AI)   │───▶│      Server        │───▶│ (Win32/WMI/PS)  │
-│                 │    │                    │    │                 │
-│ • Send commands │    │ • HTTP/stdio       │    │ • Screenshot    │
-│ • Get results   │◀───│ • Auth & routing   │◀───│ • Mouse/Keys    │
-│ • Stream data   │    │ • Task mgmt        │    │ • File/Registry │
-└─────────────────┘    └────────────────────┘    └─────────────────┘
+```mermaid
+graph LR
+    A["MCP Client<br/>(Claude/AI)"] -->|commands| B["WinRemote MCP<br/>Server"]
+    B -->|API calls| C["Windows APIs<br/>(Win32/WMI/PS)"]
+    C -->|results| B
+    B -->|responses| A
 ```
 
 **Transport Options:**
