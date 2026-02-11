@@ -77,7 +77,7 @@ Clients must include `Authorization: Bearer my-secret-key` header. The `/health`
 ### Health check
 ```bash
 curl http://localhost:8090/health
-# {"status":"ok","version":"0.4.3"}
+# {"status":"ok","version":"0.4.4"}
 ```
 
 ### Auto-start (Windows scheduled task)
@@ -115,7 +115,11 @@ winremote-mcp uninstall
 }
 ```
 
-## What's New in v0.4.3
+## What's New in v0.4.4
+
+- **Native resolution screenshots**: Screenshots now capture at actual screen resolution (e.g. 3840x2160 on 4K displays with DPI scaling). DPI awareness enabled at module load. Default `max_width` changed from 1920 to 0 (no downscale). Applies to both `Snapshot` and `AnnotatedSnapshot`.
+
+### v0.4.3
 
 - **Fixed ANSI color garbled output on Windows**: Server logs no longer show raw ANSI escape codes (`[32mINFO[0m`) in Windows terminals. Uses `NO_COLOR` environment variable for clean output.
 - **Fixed `.pyc` cache compatibility**: Cleaned up stale bytecode cache files that caused version mismatch errors across Python versions.
