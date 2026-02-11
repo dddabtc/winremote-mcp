@@ -77,7 +77,7 @@ Clients must include `Authorization: Bearer my-secret-key` header. The `/health`
 ### Health check
 ```bash
 curl http://localhost:8090/health
-# {"status":"ok","version":"0.4.1"}
+# {"status":"ok","version":"0.4.3"}
 ```
 
 ### Auto-start (Windows scheduled task)
@@ -115,7 +115,12 @@ winremote-mcp uninstall
 }
 ```
 
-## What's New in v0.4.1
+## What's New in v0.4.3
+
+- **Fixed ANSI color garbled output on Windows**: Server logs no longer show raw ANSI escape codes (`[32mINFO[0m`) in Windows terminals. Uses `NO_COLOR` environment variable for clean output.
+- **Fixed `.pyc` cache compatibility**: Cleaned up stale bytecode cache files that caused version mismatch errors across Python versions.
+
+### v0.4.1
 
 - **ReconnectSession Tool**: New tool to reconnect disconnected Windows desktop sessions to console, enabling screenshot/automation when no RDP client is connected
 - **Auto-reconnect Behavior**: `Snapshot` and `AnnotatedSnapshot` now automatically reconnect disconnected sessions if screenshot capture fails, then retry the operation
