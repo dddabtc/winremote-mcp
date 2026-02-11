@@ -152,7 +152,7 @@ def _ensure_session_connected() -> str | None:
 def Snapshot(
     use_vision: bool | str = True,
     quality: int = 75,
-    max_width: int = 1920,
+    max_width: int = 0,
     monitor: int = 0,
 ) -> list:
     """Capture desktop screenshot, window list, and interactive UI elements.
@@ -160,7 +160,7 @@ def Snapshot(
     Args:
         use_vision: Include screenshot image (default True).
         quality: JPEG quality 1-100 (default 75). Lower = smaller.
-        max_width: Max image width in pixels (default 1920). Resized keeping aspect ratio.
+        max_width: Max image width in pixels. 0=native resolution (default). Set to e.g. 1920 to downscale.
         monitor: Monitor to capture. 0=all monitors (default), 1/2/3=specific monitor.
 
     Returns a list containing:
@@ -1331,7 +1331,7 @@ def ScreenRecord(
 def AnnotatedSnapshot(
     max_elements: int = 30,
     quality: int = 75,
-    max_width: int = 1920,
+    max_width: int = 0,
 ) -> list:
     """Take a screenshot with numbered labels on interactive UI elements.
 
@@ -1341,7 +1341,7 @@ def AnnotatedSnapshot(
     Args:
         max_elements: Maximum number of elements to annotate (default 30).
         quality: JPEG quality 1-100 (default 75).
-        max_width: Max image width in pixels (default 1920).
+        max_width: Max image width in pixels. 0=native resolution (default).
     """
     try:
         import io
@@ -1364,7 +1364,7 @@ def AnnotatedSnapshot(
                         text=f"AnnotatedSnapshot error (after session reconnect): {retry_error}",
                     )
                 ]
-        if img.width > max_width:
+        if max_width > 0 and img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)))
 
