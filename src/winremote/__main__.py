@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import os
+import platform
 import subprocess
 import time
 from datetime import datetime
@@ -1566,8 +1568,42 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
     else:
         logging.getLogger("uvicorn.error").addFilter(BannerFilter())
         run_kwargs = dict(transport="streamable-http", host=host, port=port)
+        uvicorn_args = {"access_log": True}
+        if platform.system() == "Windows":
+            os.environ.setdefault("NO_COLOR", "1")
+            _fmt = "%(levelname)s:\t%(message)s"
+            uvicorn_args["log_config"] = {
+                "version": 1,
+                "disable_existing_loggers": False,
+                "formatters": {
+                    "default": {"format": _fmt},
+                    "access": {"format": _fmt},
+                },
+                "handlers": {
+                    "default": {
+                        "class": "logging.StreamHandler",
+                        "formatter": "default",
+                        "stream": "ext://sys.stderr",
+                    },
+                    "access": {
+                        "class": "logging.StreamHandler",
+                        "formatter": "access",
+                        "stream": "ext://sys.stdout",
+                    },
+                },
+                "loggers": {
+                    "uvicorn": {"handlers": ["default"], "level": "INFO"},
+                    "uvicorn.error": {"level": "INFO"},
+                    "uvicorn.access": {
+                        "handlers": ["access"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                },
+            }
         if reload:
-            run_kwargs["uvicorn_args"] = {"reload": True}
+            uvicorn_args["reload"] = True
+        run_kwargs["uvicorn_args"] = uvicorn_args
         mcp.run(**run_kwargs)
 
 
