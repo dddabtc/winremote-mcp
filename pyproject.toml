@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "winremote-mcp"
-version = "0.4.4"
+version = "0.4.5"
 description = "Windows Remote MCP Server - control Windows desktops via MCP protocol"
 readme = "README.md"
 license = "MIT"
