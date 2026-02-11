@@ -1350,30 +1350,18 @@ def AnnotatedSnapshot(
         try:
             img = ImageGrab.grab()
         except Exception as screenshot_error:
-            # Check if it's likely a session disconnection issue
-            error_msg = str(screenshot_error).lower()
-            if any(x in error_msg for x in ["screen grab failed", "display", "capture", "screenshot"]):
-                reconnect_error = _ensure_session_connected()
-                if reconnect_error is None:
-                    time.sleep(1)  # Wait for session to stabilize
-                    try:
-                        img = ImageGrab.grab()
-                    except Exception as retry_error:
-                        return [
-                            TextContent(
-                                type="text", text=f"AnnotatedSnapshot error (after auto-reconnect retry): {retry_error}"
-                            )
-                        ]
-                else:
-                    return [
-                        TextContent(
-                            type="text",
-                            text=f"AnnotatedSnapshot error: {screenshot_error}. Auto-reconnect failed: {reconnect_error}",
-                        )
-                    ]
-            else:
-                # Not a screen grab error, re-raise
-                raise screenshot_error
+            reconnect_result = _ensure_session_connected()
+            if reconnect_result is not None:
+                return [TextContent(type="text", text=f"AnnotatedSnapshot error: {screenshot_error}")]
+            try:
+                img = ImageGrab.grab()
+            except Exception as retry_error:
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"AnnotatedSnapshot error (after session reconnect): {retry_error}",
+                    )
+                ]
         if img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)))
