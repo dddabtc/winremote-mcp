@@ -194,6 +194,10 @@ pip install -e ".[test]"
 pytest  # Run tests
 ```
 
+## Acknowledgments
+
+Inspired by [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) by CursorTouch. Thanks for the pioneering work on Windows desktop automation via MCP.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
