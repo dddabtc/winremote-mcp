@@ -124,6 +124,60 @@ winremote-mcp install
 winremote-mcp uninstall
 ```
 
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| **Desktop** | |
+| Snapshot | Screenshot (JPEG, configurable quality/max_width) + window list + UI elements |
+| AnnotatedSnapshot | Screenshot with numbered labels on interactive elements |
+| OCR | Extract text from screen via OCR (pytesseract or Windows built-in) |
+| ScreenRecord | Record screen activity as animated GIF |
+| **Input** | |
+| Click | Mouse click (left/right/middle, single/double/hover) |
+| Type | Type text at coordinates |
+| Scroll | Vertical/horizontal scroll |
+| Move | Move mouse / drag |
+| Shortcut | Keyboard shortcuts |
+| Wait | Pause execution |
+| **Window Management** | |
+| FocusWindow | Bring window to front (fuzzy title match) |
+| MinimizeAll | Show desktop (Win+D) |
+| App | Launch/switch/resize applications |
+| **System** | |
+| Shell | Execute PowerShell commands (with optional cwd) |
+| GetClipboard | Read clipboard |
+| SetClipboard | Write clipboard |
+| ListProcesses | Process list with CPU/memory |
+| KillProcess | Kill process by PID or name |
+| GetSystemInfo | System information |
+| Notification | Windows toast notification |
+| LockScreen | Lock workstation |
+| ReconnectSession | Reconnect disconnected Windows desktop session to console |
+| **File System** | |
+| FileRead | Read file content |
+| FileWrite | Write file content |
+| FileList | List directory contents |
+| FileSearch | Search files by pattern |
+| FileDownload | Download file as base64 (binary) |
+| FileUpload | Upload file from base64 (binary) |
+| **Registry & Services** | |
+| RegRead | Read Windows Registry value |
+| RegWrite | Write Windows Registry value |
+| ServiceList | List Windows services |
+| ServiceStart | Start a Windows service |
+| ServiceStop | Stop a Windows service |
+| **Scheduled Tasks** | |
+| TaskList | List scheduled tasks |
+| TaskCreate | Create a scheduled task |
+| TaskDelete | Delete a scheduled task |
+| **Network** | |
+| Scrape | Fetch URL content |
+| Ping | Ping a host |
+| PortCheck | Check if a TCP port is open |
+| NetConnections | List network connections |
+| EventLog | Read Windows Event Log entries |
+
 ## How It Works
 
 ```
