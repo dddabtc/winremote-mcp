@@ -1575,31 +1575,68 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
 def install():
     """Create a Windows scheduled task for auto-start."""
     import getpass
+    import os
 
     username = getpass.getuser()
-    task_cmd = f'schtasks /Create /SC ONSTART /TN "WinRemoteMCP" /TR "python -m winremote" /RU {username} /F'
+
+    # Create start_mcp.bat for Chinese Windows compatibility
+    python_exe = subprocess.run(["where", "python"], capture_output=True, text=True).stdout.strip().split("\n")[0]
+    bat_content = f"""@echo off
+rem winremote-mcp startup script with UTF-8 encoding for Chinese Windows
+set PYTHONIOENCODING=utf-8
+"{python_exe}" -m winremote %*
+"""
+
+    # Write batch file to user's profile directory
+    user_profile = os.environ.get("USERPROFILE", ".")
+    bat_path = os.path.join(user_profile, "start_mcp.bat")
+
+    try:
+        with open(bat_path, "w", encoding="utf-8") as f:
+            f.write(bat_content)
+        click.echo(f"[OK] Created startup script: {bat_path}")
+    except Exception as e:
+        click.echo(f"[ERROR] Failed to create startup script: {e}")
+        return
+
+    # Create scheduled task using the batch file
+    task_cmd = f'schtasks /Create /SC ONSTART /TN "WinRemoteMCP" /TR "{bat_path}" /RU {username} /F'
     try:
         result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
-            click.echo("✅ Scheduled task 'WinRemoteMCP' created for auto-start.")
+            click.echo("[OK] Scheduled task 'WinRemoteMCP' created for auto-start.")
+            click.echo("The server will start automatically on system boot.")
+            click.echo("Note: Uses start_mcp.bat for Chinese Windows compatibility.")
         else:
-            click.echo(f"❌ Failed to create task:\n{result.stderr or result.stdout}")
+            click.echo(f"[ERROR] Failed to create task:\n{result.stderr or result.stdout}")
     except Exception as e:
-        click.echo(f"❌ Error: {e}")
+        click.echo(f"[ERROR] Error: {e}")
 
 
 @cli.command()
 def uninstall():
     """Remove the WinRemoteMCP scheduled task."""
+    import os
+
     task_cmd = 'schtasks /Delete /TN "WinRemoteMCP" /F'
     try:
         result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
-            click.echo("✅ Scheduled task 'WinRemoteMCP' removed.")
+            click.echo("[OK] Scheduled task 'WinRemoteMCP' removed.")
         else:
-            click.echo(f"❌ Failed to remove task:\n{result.stderr or result.stdout}")
+            click.echo(f"[ERROR] Failed to remove task:\n{result.stderr or result.stdout}")
     except Exception as e:
-        click.echo(f"❌ Error: {e}")
+        click.echo(f"[ERROR] Error: {e}")
+
+    # Also remove the batch file
+    user_profile = os.environ.get("USERPROFILE", ".")
+    bat_path = os.path.join(user_profile, "start_mcp.bat")
+    try:
+        if os.path.exists(bat_path):
+            os.remove(bat_path)
+            click.echo(f"[OK] Removed startup script: {bat_path}")
+    except Exception as e:
+        click.echo(f"[ERROR] Failed to remove startup script: {e}")
 
 
 @cli.command()

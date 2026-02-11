@@ -77,7 +77,7 @@ Clients must include `Authorization: Bearer my-secret-key` header. The `/health`
 ### Health check
 ```bash
 curl http://localhost:8090/health
-# {"status":"ok","version":"0.4.0"}
+# {"status":"ok","version":"0.4.1"}
 ```
 
 ### Auto-start (Windows scheduled task)
@@ -115,7 +115,16 @@ winremote-mcp uninstall
 }
 ```
 
-## What's New in v0.4.0
+## What's New in v0.4.1
+
+- **ReconnectSession Tool**: New tool to reconnect disconnected Windows desktop sessions to console, enabling screenshot/automation when no RDP client is connected
+- **Auto-reconnect Behavior**: `Snapshot` and `AnnotatedSnapshot` now automatically reconnect disconnected sessions if screenshot capture fails, then retry the operation
+- **Chinese Windows Support**: Fixed encoding crashes on Chinese Windows systems (GBK terminals)
+  - Replaced emoji characters (✅ ❌) in `install`/`uninstall` commands with plain text `[OK]`/`[ERROR]`
+  - Added `start_mcp.bat` approach that sets `PYTHONIOENCODING=utf-8` before launching the server
+  - Scheduled task now uses the batch file for reliable startup on Chinese Windows
+
+### v0.4.0
 
 - **Error Resilience**: All 40 tools wrapped with try/except — errors return helpful messages instead of crashing the server
 - **Concurrency Control**: Tools categorized into 5 groups (desktop/file/query/shell/network). Desktop tools (mouse, keyboard, screenshot) are exclusive — only one at a time. Other categories allow parallel execution.
@@ -188,6 +197,7 @@ winremote-mcp uninstall
 | OCR | Extract text from screen via OCR (pytesseract or Windows built-in) |
 | ScreenRecord | Record screen activity as animated GIF |
 | AnnotatedSnapshot | Screenshot with numbered labels on interactive elements |
+| ReconnectSession | Reconnect disconnected Windows desktop session to console |
 | CancelTask | Cancel a running or pending task by ID |
 | GetTaskStatus | Get task details or list recent task history |
 | GetRunningTasks | List all currently active (running/pending) tasks |
