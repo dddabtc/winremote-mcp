@@ -537,6 +537,87 @@ def GetSystemInfo() -> str:
         return f"GetSystemInfo error: {e}"
 
 
+@mcp.tool(annotations=ToolAnnotations(title="ReconnectSession", readOnlyHint=False))
+def ReconnectSession(force: bool = False) -> list:
+    """Reconnect a disconnected Windows desktop session to the console.
+
+    This enables screenshot and UI automation tools to work when no RDP
+    client is actively connected. Runs 'tscon' to attach the user's
+    session to the console.
+
+    Args:
+        force: Reconnect even if session appears active (default False).
+    """
+    try:
+        # Query current sessions
+        result = subprocess.run(
+            ["query", "session"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0:
+            return [TextContent(type="text", text=f"Failed to query sessions: {result.stderr}")]
+
+        session_lines = result.stdout.strip().split("\n")
+        user_session_id = None
+        session_status = None
+
+        # Parse session output to find user session
+        for line in session_lines[1:]:  # Skip header
+            if not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) >= 3:
+                session_name = parts[0]
+                username = parts[1] if parts[1] != ">" else parts[2]
+                session_id = parts[2] if parts[1] != ">" else parts[1]
+                state = parts[3] if parts[1] != ">" else parts[2]
+
+                # Look for a user session (not services or console without user)
+                if (
+                    username
+                    and username.lower() not in ["", "services"]
+                    and session_name.lower() not in ["services", "console"]
+                    and session_id.isdigit()
+                ):
+                    user_session_id = int(session_id)
+                    session_status = state.lower()
+                    break
+
+        if user_session_id is None:
+            return [TextContent(type="text", text="No user session found to reconnect")]
+
+        # Check if session is already active
+        if session_status == "active" and not force:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Session {user_session_id} is already active. Use force=True to reconnect anyway.",
+                )
+            ]
+
+        # Reconnect session to console
+        result = subprocess.run(
+            ["tscon", str(user_session_id), "/dest:console"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode == 0:
+            return [TextContent(type="text", text=f"Successfully reconnected session {user_session_id} to console")]
+        else:
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return [TextContent(type="text", text=f"Failed to reconnect session {user_session_id}: {error_msg}")]
+
+    except subprocess.TimeoutExpired:
+        return [TextContent(type="text", text="Operation timed out")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"ReconnectSession error: {e}")]
+
+
 @mcp.tool(
     annotations=ToolAnnotations(
         title="Notification",

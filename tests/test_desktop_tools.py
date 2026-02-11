@@ -126,3 +126,136 @@ class TestFocusWindow:
             mock_desktop.focus_window.return_value = "Focused window"
             result = _call_tool("FocusWindow", title="notepad")
             assert "Focused" in result or "task:" in result
+
+
+class TestReconnectSession:
+    def test_session_found_and_reconnected(self):
+        from unittest.mock import MagicMock
+
+        mock_result_query = MagicMock()
+        mock_result_query.returncode = 0
+        mock_result_query.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
+ console                                    0  Conn    wdcon
+ rdp-tcp                                65536  Listen  rdpwd
+ rdp-tcp#0         testuser                 1  Disc    rdpwd
+"""
+
+        mock_result_tscon = MagicMock()
+        mock_result_tscon.returncode = 0
+        mock_result_tscon.stdout = ""
+        mock_result_tscon.stderr = ""
+
+        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
+            # First call returns session query, second call returns tscon result
+            mock_subprocess.side_effect = [mock_result_query, mock_result_tscon]
+
+            result = _call_tool("ReconnectSession")
+
+            # Should be a list with TextContent
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "Successfully reconnected session 1" in result[0].text
+
+    def test_session_active_without_force(self):
+        from unittest.mock import MagicMock
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
+ console                                    0  Conn    wdcon
+ rdp-tcp#0         testuser                 1  Active  rdpwd
+"""
+
+        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
+            mock_subprocess.return_value = mock_result
+
+            result = _call_tool("ReconnectSession")
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "already active" in result[0].text
+
+    def test_session_active_with_force(self):
+        from unittest.mock import MagicMock
+
+        mock_result_query = MagicMock()
+        mock_result_query.returncode = 0
+        mock_result_query.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
+ console                                    0  Conn    wdcon
+ rdp-tcp#0         testuser                 1  Active  rdpwd
+"""
+
+        mock_result_tscon = MagicMock()
+        mock_result_tscon.returncode = 0
+        mock_result_tscon.stdout = ""
+        mock_result_tscon.stderr = ""
+
+        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
+            mock_subprocess.side_effect = [mock_result_query, mock_result_tscon]
+
+            result = _call_tool("ReconnectSession", force=True)
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "Successfully reconnected session 1" in result[0].text
+
+    def test_no_user_session_found(self):
+        from unittest.mock import MagicMock
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
+ console                                    0  Conn    wdcon
+ rdp-tcp                                65536  Listen  rdpwd
+ services          services                 0  Disc    rdpwd
+"""
+
+        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
+            mock_subprocess.return_value = mock_result
+
+            result = _call_tool("ReconnectSession")
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "No user session found" in result[0].text
+
+    def test_query_session_fails(self):
+        from unittest.mock import MagicMock
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "Access denied"
+
+        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
+            mock_subprocess.return_value = mock_result
+
+            result = _call_tool("ReconnectSession")
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "Failed to query sessions" in result[0].text
+
+    def test_tscon_fails(self):
+        from unittest.mock import MagicMock
+
+        mock_result_query = MagicMock()
+        mock_result_query.returncode = 0
+        mock_result_query.stdout = """SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE
+ console                                    0  Conn    wdcon
+ rdp-tcp#0         testuser                 1  Disc    rdpwd
+"""
+
+        mock_result_tscon = MagicMock()
+        mock_result_tscon.returncode = 1
+        mock_result_tscon.stderr = "Access is denied."
+        mock_result_tscon.stdout = ""
+
+        with patch("winremote.__main__.subprocess.run") as mock_subprocess:
+            mock_subprocess.side_effect = [mock_result_query, mock_result_tscon]
+
+            result = _call_tool("ReconnectSession")
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert "Failed to reconnect session 1" in result[0].text
+            assert "Access is denied" in result[0].text
