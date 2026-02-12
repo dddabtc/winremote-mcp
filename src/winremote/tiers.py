@@ -1,9 +1,7 @@
 """Tool tier definitions and access control."""
 
-from __future__ import annotations
-
 # Tool tier definitions based on security risk level
-TOOL_TIERS: dict[str, set[str]] = {
+TOOL_TIERS = {
     # Tier 1: Read-only (low risk, default enabled)
     "tier1": {
         "Snapshot", "AnnotatedSnapshot", "GetClipboard", "GetSystemInfo",
@@ -31,11 +29,11 @@ DEFAULT_TIERS = {"tier1", "tier2"}  # tier3 disabled by default
 
 
 def get_enabled_tools(
-    enable_all: bool = False,
-    disable_tier2: bool = False,
-    tools: set[str] | None = None,
-    exclude_tools: set[str] | None = None,
-) -> set[str]:
+    enable_all=False,
+    disable_tier2=False,
+    tools=None,
+    exclude_tools=None,
+):
     """Calculate the set of enabled tools based on options.
     
     Args:
@@ -63,7 +61,7 @@ def get_enabled_tools(
     return enabled
 
 
-def filter_tools(mcp, enabled_tools: set[str]) -> dict[str, int]:
+def filter_tools(mcp, enabled_tools):
     """Remove tools not in the enabled set from the MCP server.
     
     Args:
@@ -91,7 +89,7 @@ def filter_tools(mcp, enabled_tools: set[str]) -> dict[str, int]:
     }
 
 
-def get_tier_names(enabled_tools: set[str]) -> list[str]:
+def get_tier_names(enabled_tools):
     """Get list of enabled tier names based on tools.
     
     Args:
