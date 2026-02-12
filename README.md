@@ -6,6 +6,16 @@
 
 A Windows Remote MCP Server — control Windows desktops via the [Model Context Protocol](https://modelcontextprotocol.io/).
 
+## 🔒 Security
+
+> **Tools are grouped by risk level.** Read-only tools (screenshots, system info) are safe by default. Destructive tools (Shell, FileWrite) require explicit enablement.
+>
+> - 🟢 **Tier 1-2**: Safe for general use (default enabled)
+> - 🔴 **Tier 3**: High-risk tools (Shell, file write, registry) — enable only when needed
+> - **Always use `--auth-key`** when exposing to network
+>
+> **[→ Read the full Security Guide](SECURITY.md)**
+
 Built with [FastMCP](https://github.com/jlowin/fastmcp). Runs **on the Windows machine** you want to control.
 
 ## Features
@@ -255,30 +265,26 @@ Ready-to-use skill packages for popular AI platforms:
 
 See [docs/openclaw-integration.md](docs/openclaw-integration.md) for detailed setup with authentication.
 
-## Security
+## Security Overview
 
 **Default bind: `127.0.0.1` (localhost only).** Remote access requires explicit `--host 0.0.0.0`.
 
-When exposing to the network:
-- **Always use `--auth-key`** — without it, anyone on the network has full access
-- **Use a firewall** — restrict port 8090 to trusted IPs only
-- **Consider a reverse proxy** — nginx/caddy with TLS for encrypted connections
-- **Network segmentation** — run on a private VLAN, not the public internet
+### Tool Risk Tiers
 
-### Current security model
+| Tier | Risk | Default | Examples |
+|------|------|---------|----------|
+| **Tier 1** | Read-only | ✅ Enabled | Snapshot, GetSystemInfo, ListProcesses |
+| **Tier 2** | Interactive | ✅ Enabled | Click, Type, Shortcut, App |
+| **Tier 3** | Destructive | ⚠️ *Enable explicitly* | Shell, FileWrite, KillProcess, RegWrite |
 
-| Feature | Status |
-|---------|--------|
-| Bearer token auth | ✅ `--auth-key` |
-| Localhost by default | ✅ `127.0.0.1` |
-| Health endpoint public | ✅ No auth needed |
-| Per-tool permissions | ❌ Not yet |
-| Operation audit log | ❌ Not yet |
-| IP allowlist | ❌ Not yet |
-| Rate limiting | ❌ Not yet |
-| Shell sandboxing | ❌ Not yet |
+### Quick Security Checklist
 
-> ⚠️ **This tool is designed for personal use in trusted networks** (e.g., local development, LAN). Do not expose to the public internet without additional security layers.
+- [ ] Using `--auth-key` for remote access?
+- [ ] Firewall restricting port 8090?
+- [ ] TLS via reverse proxy (production)?
+- [ ] Tier 3 tools disabled if not needed?
+
+📖 **[Full Security Guide →](SECURITY.md)** — risk assessment, deployment scenarios, hardening steps.
 
 ## Acknowledgments
 
