@@ -4,24 +4,55 @@
 TOOL_TIERS = {
     # Tier 1: Read-only (low risk, default enabled)
     "tier1": {
-        "Snapshot", "AnnotatedSnapshot", "GetClipboard", "GetSystemInfo",
-        "ListProcesses", "FileList", "FileSearch", "RegRead", "ServiceList",
-        "TaskList", "EventLog", "Ping", "PortCheck", "NetConnections",
-        "OCR", "ScreenRecord", "Notification", "Wait",
-        "GetTaskStatus", "GetRunningTasks",
+        "Snapshot",
+        "AnnotatedSnapshot",
+        "GetClipboard",
+        "GetSystemInfo",
+        "ListProcesses",
+        "FileList",
+        "FileSearch",
+        "RegRead",
+        "ServiceList",
+        "TaskList",
+        "EventLog",
+        "Ping",
+        "PortCheck",
+        "NetConnections",
+        "OCR",
+        "ScreenRecord",
+        "Notification",
+        "Wait",
+        "GetTaskStatus",
+        "GetRunningTasks",
     },
-
     # Tier 2: Interactive (medium risk, default enabled)
     "tier2": {
-        "Click", "Type", "Move", "Scroll", "Shortcut",
-        "FocusWindow", "MinimizeAll", "App", "Scrape", "CancelTask",
+        "Click",
+        "Type",
+        "Move",
+        "Scroll",
+        "Shortcut",
+        "FocusWindow",
+        "MinimizeAll",
+        "App",
+        "Scrape",
+        "CancelTask",
     },
-
     # Tier 3: Destructive (high risk, default DISABLED)
     "tier3": {
-        "Shell", "FileRead", "FileWrite", "FileDownload", "FileUpload",
-        "KillProcess", "RegWrite", "ServiceStart", "ServiceStop",
-        "TaskCreate", "TaskDelete", "SetClipboard", "LockScreen",
+        "Shell",
+        "FileRead",
+        "FileWrite",
+        "FileDownload",
+        "FileUpload",
+        "KillProcess",
+        "RegWrite",
+        "ServiceStart",
+        "ServiceStop",
+        "TaskCreate",
+        "TaskDelete",
+        "SetClipboard",
+        "LockScreen",
     },
 }
 
@@ -82,11 +113,7 @@ def filter_tools(mcp, enabled_tools):
     enabled_count = len(enabled_tools)
     disabled_count = total_count - enabled_count
 
-    return {
-        "enabled": enabled_count,
-        "disabled": disabled_count,
-        "total": total_count
-    }
+    return {"enabled": enabled_count, "disabled": disabled_count, "total": total_count}
 
 
 def get_tier_names(enabled_tools):

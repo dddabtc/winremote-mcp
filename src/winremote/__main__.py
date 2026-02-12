@@ -1515,15 +1515,27 @@ _wrap_all_tools()
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
 @click.option(
-    "--enable-all", is_flag=True, default=False,
+    "--enable-all",
+    is_flag=True,
+    default=False,
     help="Enable all 43 tools including high-risk Tier 3 tools (Shell, FileWrite, KillProcess, etc.)",
 )
 @click.option("--disable-tier2", is_flag=True, default=False, help="Disable interactive tools (Click, Type, etc.)")
 @click.option("--tools", default="", help="Comma-separated list of specific tools to enable (overrides tiers)")
 @click.option("--exclude-tools", default="", help="Comma-separated list of tools to disable")
 @click.pass_context
-def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None,
-        enable_all: bool, disable_tier2: bool, tools: str, exclude_tools: str):
+def cli(
+    ctx,
+    transport: str,
+    host: str,
+    port: int,
+    reload: bool,
+    auth_key: str | None,
+    enable_all: bool,
+    disable_tier2: bool,
+    tools: str,
+    exclude_tools: str,
+):
     """Start the winremote MCP server."""
     if ctx.invoked_subcommand is not None:
         return  # subcommand will handle it
