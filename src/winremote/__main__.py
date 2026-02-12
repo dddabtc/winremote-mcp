@@ -1514,7 +1514,10 @@ _wrap_all_tools()
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
-@click.option("--enable-all", is_flag=True, default=False, help="Enable all 43 tools including high-risk Tier 3 tools (Shell, FileWrite, KillProcess, etc.)")
+@click.option(
+    "--enable-all", is_flag=True, default=False,
+    help="Enable all 43 tools including high-risk Tier 3 tools (Shell, FileWrite, KillProcess, etc.)",
+)
 @click.option("--disable-tier2", is_flag=True, default=False, help="Disable interactive tools (Click, Type, etc.)")
 @click.option("--tools", default="", help="Comma-separated list of specific tools to enable (overrides tiers)")
 @click.option("--exclude-tools", default="", help="Comma-separated list of tools to disable")
@@ -1532,7 +1535,7 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
         tools=set(tools.split(",")) if tools.strip() else None,
         exclude_tools=set(exclude_tools.split(",")) if exclude_tools.strip() else None,
     )
-    
+
     tool_stats = filter_tools(mcp, enabled_tools_set)
     enabled_tiers = get_tier_names(enabled_tools_set)
 
