@@ -23,6 +23,7 @@ from starlette.responses import JSONResponse
 
 from winremote import __version__, desktop, network, ocr, process_mgr, recording, registry, services
 from winremote.taskmanager import manager as task_manager
+from winremote.tiers import filter_tools, get_enabled_tools, get_tier_names
 
 load_dotenv()
 
@@ -1330,11 +1331,27 @@ _wrap_all_tools()
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
+@click.option("--enable-all", is_flag=True, default=False, help="Enable all 43 tools including high-risk Tier 3 tools (Shell, FileWrite, KillProcess, etc.)")
+@click.option("--disable-tier2", is_flag=True, default=False, help="Disable interactive tools (Click, Type, etc.)")
+@click.option("--tools", default="", help="Comma-separated list of specific tools to enable (overrides tiers)")
+@click.option("--exclude-tools", default="", help="Comma-separated list of tools to disable")
 @click.pass_context
-def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None):
+def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str | None,
+        enable_all: bool, disable_tier2: bool, tools: str, exclude_tools: str):
     """Start the winremote MCP server."""
     if ctx.invoked_subcommand is not None:
         return  # subcommand will handle it
+
+    # Apply tool filtering based on CLI options
+    enabled_tools_set = get_enabled_tools(
+        enable_all=enable_all,
+        disable_tier2=disable_tier2,
+        tools=set(tools.split(",")) if tools.strip() else None,
+        exclude_tools=set(exclude_tools.split(",")) if exclude_tools.strip() else None,
+    )
+    
+    tool_stats = filter_tools(mcp, enabled_tools_set)
+    enabled_tiers = get_tier_names(enabled_tools_set)
 
     # Apply auth middleware if key is set
     if auth_key:
@@ -1363,6 +1380,8 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
                 self._shown = True
                 auth_line = "[auth ON]" if auth_key else "[no auth]"
                 bind_line = f"[{host}:{port}]"
+                tiers_line = f"[tiers: {','.join(enabled_tiers)}]"
+                tools_line = f"[tools: {tool_stats['enabled']}/{tool_stats['total']}]"
                 pad = " " * 10  # align with uvicorn log text
                 ver_line = f"winremote-mcp v{__version__}"
                 lines = [
@@ -1372,11 +1391,14 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
                     f"{pad}|  github.com/dddabtc              |",
                     f"{pad}|  {auth_line:<32s}|",
                     f"{pad}|  {bind_line:<32s}|",
+                    f"{pad}|  {tiers_line:<16s}{tools_line:<16s}|",
                     f"{pad}+----------------------------------+",
                 ]
                 if host == "0.0.0.0" and not auth_key:
                     lines.append(f"{pad}  WARNING: open to network without auth!")
                     lines.append(f"{pad}  Use --auth-key for security.")
+                if enable_all:
+                    lines.append(f"{pad}  INFO: High-risk Tier 3 tools enabled!")
                 print("\n" + "\n".join(lines) + "\n", flush=True)
             return True
 
