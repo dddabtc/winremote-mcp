@@ -22,6 +22,7 @@ try:
 except ImportError:
     from fastmcp.tools import ToolAnnotations
 
+from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
 
 from winremote import __version__, desktop, network, ocr, process_mgr, recording, registry, services
@@ -1596,31 +1597,16 @@ def cli(
     _apply_tool_filter(enabled_tools)
     enabled_tiers = get_tier_names(enabled_tools)
 
-    # Apply auth middleware if key is set
-    if auth_key:
-        from winremote.auth import AuthKeyMiddleware
-
-        # Get the underlying ASGI app and wrap it
-        original_app = mcp._get_app
-        auth_key_value = auth_key
-
-        def patched_get_app(*args, **kwargs):
-            app = original_app(*args, **kwargs)
-            app.add_middleware(AuthKeyMiddleware, auth_key=auth_key_value)
-            return app
-
-        mcp._get_app = patched_get_app
+    middleware: list[Middleware] = []
 
     if allowlist_entries:
         allowlist_networks = parse_ip_allowlist(allowlist_entries)
-        original_app = mcp._get_app
+        middleware.append(Middleware(IPAllowlistMiddleware, allowlist=allowlist_networks))
 
-        def patched_get_app_with_allowlist(*args, **kwargs):
-            app = original_app(*args, **kwargs)
-            app.add_middleware(IPAllowlistMiddleware, allowlist=allowlist_networks)
-            return app
+    if auth_key:
+        from winremote.auth import AuthKeyMiddleware
 
-        mcp._get_app = patched_get_app_with_allowlist
+        middleware.append(Middleware(AuthKeyMiddleware, auth_key=auth_key))
 
     import logging
 
@@ -1661,6 +1647,8 @@ def cli(
     else:
         logging.getLogger("uvicorn.error").addFilter(BannerFilter())
         run_kwargs = dict(transport="streamable-http", host=host, port=port)
+        if middleware:
+            run_kwargs["middleware"] = middleware
         if platform.system() == "Windows":
             os.environ.setdefault("NO_COLOR", "1")
         if reload:

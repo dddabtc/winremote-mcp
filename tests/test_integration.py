@@ -17,7 +17,7 @@ class TestHealthEndpoint:
         try:
             from starlette.testclient import TestClient
 
-            app = mcp._get_app()
+            app = mcp.http_app(transport="streamable-http")
             client = TestClient(app)
             resp = client.get("/health")
             assert resp.status_code == 200
