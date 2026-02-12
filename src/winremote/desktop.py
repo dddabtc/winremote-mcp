@@ -25,6 +25,15 @@ except ImportError:
 
 from PIL import ImageGrab
 
+# Enable DPI awareness so screenshots capture native resolution (e.g. 4K)
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -150,12 +159,12 @@ def _get_monitor_bbox(monitor: int) -> tuple[int, int, int, int] | None:
         raise
 
 
-def take_screenshot(quality: int = 75, max_width: int = 1920, monitor: int = 0) -> str:
+def take_screenshot(quality: int = 75, max_width: int = 0, monitor: int = 0) -> str:
     """Capture screen, return base64 JPEG. Resizes if wider than max_width.
 
     Args:
         quality: JPEG quality 1-100.
-        max_width: Max width in pixels.
+        max_width: Max width in pixels. 0=no resize (native resolution).
         monitor: 0=all monitors, 1/2/3=specific monitor.
     """
     if monitor == 0:
@@ -164,7 +173,7 @@ def take_screenshot(quality: int = 75, max_width: int = 1920, monitor: int = 0) 
         bbox = _get_monitor_bbox(monitor)
         img = ImageGrab.grab(bbox=bbox)
     # Resize if needed
-    if img.width > max_width:
+    if max_width > 0 and img.width > max_width:
         ratio = max_width / img.width
         new_height = int(img.height * ratio)
         img = img.resize((max_width, new_height), resample=3)  # LANCZOS
