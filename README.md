@@ -76,6 +76,66 @@ pip install winremote-mcp[ocr]
 ## Usage
 
 ### Basic Usage
+
+### Tier and tool controls
+```bash
+# Default: tier1 + tier2 enabled, tier3 disabled
+winremote-mcp
+
+# Enable destructive tier3 tools
+winremote-mcp --enable-tier3
+
+# Disable interactive tier2 (tier1 only)
+winremote-mcp --disable-tier2
+
+# Both together: tier1 + tier3 (tier2 disabled)
+winremote-mcp --enable-tier3 --disable-tier2
+
+# Backward-compatible: enable everything
+winremote-mcp --enable-all
+
+# Explicit tool list (highest precedence over tier flags)
+winremote-mcp --tools Snapshot,Click,Type
+
+# Remove specific tools from resolved set
+winremote-mcp --enable-tier3 --exclude-tools Shell,FileWrite
+```
+
+### Config file (`winremote.toml`)
+Search order:
+1. `--config /path/to/winremote.toml`
+2. `./winremote.toml`
+3. `~/.config/winremote/winremote.toml`
+
+```toml
+[server]
+host = "127.0.0.1"
+port = 8090
+auth_key = ""
+
+[security]
+ip_allowlist = ["127.0.0.1", "192.168.1.0/24"]
+enable_tier3 = false
+disable_tier2 = false
+
+[tools]
+enable = ["Snapshot", "Click", "Type"]
+exclude = []
+```
+
+**Precedence:** CLI flags override config file values; config file values override defaults.
+
+### IP allowlist
+```bash
+# CLI
+winremote-mcp --ip-allowlist 127.0.0.1,192.168.1.0/24
+
+# Or via config [security].ip_allowlist
+```
+
+Supports both single IPs and CIDR ranges (IPv4/IPv6). Non-allowlisted clients receive HTTP 403 with a clear error.
+
+### Health check
 ```bash
 # Start MCP server (localhost only, no auth)
 winremote-mcp

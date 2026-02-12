@@ -12,6 +12,7 @@ from pathlib import Path
 
 import click
 import pyautogui
+from click.core import ParameterSource
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent
@@ -24,8 +25,10 @@ except ImportError:
 from starlette.responses import JSONResponse
 
 from winremote import __version__, desktop, network, ocr, process_mgr, recording, registry, services
+from winremote.config import discover_config_path, load_config
+from winremote.security import IPAllowlistMiddleware, parse_ip_allowlist
 from winremote.taskmanager import manager as task_manager
-from winremote.tiers import filter_tools, get_enabled_tools, get_tier_names
+from winremote.tiers import ALL_TOOLS, get_tier_names, parse_tool_csv, resolve_enabled_tools
 
 load_dotenv()
 
@@ -1505,6 +1508,25 @@ def _wrap_all_tools():
 _wrap_all_tools()
 
 
+def _param_explicit(ctx: click.Context, name: str) -> bool:
+    src = ctx.get_parameter_source(name)
+    return src in {ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT}
+
+
+def _choose_value(ctx: click.Context, name: str, cli_value, config_value, default_value):
+    if _param_explicit(ctx, name):
+        return cli_value
+    if config_value is not None:
+        return config_value
+    return default_value
+
+
+def _apply_tool_filter(enabled_tools: set[str]) -> None:
+    for tool_name in list(mcp._tool_manager._tools.keys()):
+        if tool_name not in enabled_tools:
+            del mcp._tool_manager._tools[tool_name]
+
+
 # ================================== CLI ====================================
 
 
@@ -1514,15 +1536,18 @@ _wrap_all_tools()
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
+@click.option("--config", default=None, help="Path to winremote.toml config file")
 @click.option(
     "--enable-all",
     is_flag=True,
     default=False,
-    help="Enable all 43 tools including high-risk Tier 3 tools (Shell, FileWrite, KillProcess, etc.)",
+    help="Enable all tools including high-risk Tier 3 tools (backward-compatible)",
 )
-@click.option("--disable-tier2", is_flag=True, default=False, help="Disable interactive tools (Click, Type, etc.)")
-@click.option("--tools", default="", help="Comma-separated list of specific tools to enable (overrides tiers)")
-@click.option("--exclude-tools", default="", help="Comma-separated list of tools to disable")
+@click.option("--enable-tier3", is_flag=True, default=False, help="Enable tier3 destructive tools")
+@click.option("--disable-tier2", is_flag=True, default=False, help="Disable tier2 interactive tools")
+@click.option("--tools", default="", help="Comma-separated tools to enable (highest precedence)")
+@click.option("--exclude-tools", default="", help="Comma-separated tools to disable")
+@click.option("--ip-allowlist", default="", help="Comma-separated IPs/CIDRs allowed to access HTTP transport")
 @click.pass_context
 def cli(
     ctx,
@@ -1531,25 +1556,45 @@ def cli(
     port: int,
     reload: bool,
     auth_key: str | None,
+    config: str | None,
     enable_all: bool,
+    enable_tier3: bool,
     disable_tier2: bool,
     tools: str,
     exclude_tools: str,
+    ip_allowlist: str,
 ):
     """Start the winremote MCP server."""
     if ctx.invoked_subcommand is not None:
         return  # subcommand will handle it
 
-    # Apply tool filtering based on CLI options
-    enabled_tools_set = get_enabled_tools(
-        enable_all=enable_all,
-        disable_tier2=disable_tier2,
-        tools=set(tools.split(",")) if tools.strip() else None,
-        exclude_tools=set(exclude_tools.split(",")) if exclude_tools.strip() else None,
-    )
+    config_path = discover_config_path(config)
+    cfg = load_config(config_path)
 
-    tool_stats = filter_tools(mcp, enabled_tools_set)
-    enabled_tiers = get_tier_names(enabled_tools_set)
+    host = _choose_value(ctx, "host", host, cfg.server.host, "127.0.0.1")
+    port = int(_choose_value(ctx, "port", port, cfg.server.port, 8090))
+    auth_key = _choose_value(ctx, "auth_key", auth_key, cfg.server.auth_key, None)
+
+    enable_tier3 = bool(_choose_value(ctx, "enable_tier3", enable_tier3, cfg.security.enable_tier3, False))
+    disable_tier2 = bool(_choose_value(ctx, "disable_tier2", disable_tier2, cfg.security.disable_tier2, False))
+
+    cli_tools = parse_tool_csv(tools)
+    cli_excluded = parse_tool_csv(exclude_tools)
+    cli_allowlist = parse_tool_csv(ip_allowlist)
+
+    selected_tools = cli_tools if _param_explicit(ctx, "tools") else cfg.tools.enable
+    excluded_tools = cli_excluded if _param_explicit(ctx, "exclude_tools") else cfg.tools.exclude
+    allowlist_entries = cli_allowlist if _param_explicit(ctx, "ip_allowlist") else cfg.security.ip_allowlist
+
+    enabled_tools = resolve_enabled_tools(
+        enable_tier3=enable_tier3,
+        disable_tier2=disable_tier2,
+        enable_all=enable_all,
+        explicit_tools=selected_tools,
+        exclude_tools=excluded_tools,
+    )
+    _apply_tool_filter(enabled_tools)
+    enabled_tiers = get_tier_names(enabled_tools)
 
     # Apply auth middleware if key is set
     if auth_key:
@@ -1566,6 +1611,17 @@ def cli(
 
         mcp._get_app = patched_get_app
 
+    if allowlist_entries:
+        allowlist_networks = parse_ip_allowlist(allowlist_entries)
+        original_app = mcp._get_app
+
+        def patched_get_app_with_allowlist(*args, **kwargs):
+            app = original_app(*args, **kwargs)
+            app.add_middleware(IPAllowlistMiddleware, allowlist=allowlist_networks)
+            return app
+
+        mcp._get_app = patched_get_app_with_allowlist
+
     import logging
 
     class BannerFilter(logging.Filter):
@@ -1579,7 +1635,7 @@ def cli(
                 auth_line = "[auth ON]" if auth_key else "[no auth]"
                 bind_line = f"[{host}:{port}]"
                 tiers_line = f"[tiers: {','.join(enabled_tiers)}]"
-                tools_line = f"[tools: {tool_stats['enabled']}/{tool_stats['total']}]"
+                tools_line = f"[tools: {len(enabled_tools)}/{len(ALL_TOOLS)}]"
                 pad = " " * 10  # align with uvicorn log text
                 ver_line = f"winremote-mcp v{__version__}"
                 lines = [

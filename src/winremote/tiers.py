@@ -1,8 +1,8 @@
 """Tool tier definitions and access control."""
 
-# Tool tier definitions based on security risk level
+from __future__ import annotations
+
 TOOL_TIERS = {
-    # Tier 1: Read-only (low risk, default enabled)
     "tier1": {
         "Snapshot",
         "AnnotatedSnapshot",
@@ -25,7 +25,6 @@ TOOL_TIERS = {
         "GetTaskStatus",
         "GetRunningTasks",
     },
-    # Tier 2: Interactive (medium risk, default enabled)
     "tier2": {
         "Click",
         "Type",
@@ -37,8 +36,8 @@ TOOL_TIERS = {
         "App",
         "Scrape",
         "CancelTask",
+        "ReconnectSession",
     },
-    # Tier 3: Destructive (high risk, default DISABLED)
     "tier3": {
         "Shell",
         "FileRead",
@@ -56,82 +55,78 @@ TOOL_TIERS = {
     },
 }
 
-DEFAULT_TIERS = {"tier1", "tier2"}  # tier3 disabled by default
+ALL_TOOLS = TOOL_TIERS["tier1"] | TOOL_TIERS["tier2"] | TOOL_TIERS["tier3"]
+_NAME_LOOKUP = {name.lower(): name for name in ALL_TOOLS}
 
 
-def get_enabled_tools(
-    enable_all=False,
-    disable_tier2=False,
-    tools=None,
-    exclude_tools=None,
-):
-    """Calculate the set of enabled tools based on options.
+def parse_tool_csv(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
 
-    Args:
-        enable_all: Enable all tiers (including high-risk tier3 tools)
-        disable_tier2: Disable interactive tools (Click, Type, etc.)
-        tools: Explicit tool list overrides tiers
-        exclude_tools: Tools to exclude from the enabled set
 
-    Returns:
-        Set of enabled tool names
+def normalize_tool_names(tool_names: list[str]) -> list[str]:
+    normalized = []
+    unknown = []
+    for name in tool_names:
+        hit = _NAME_LOOKUP.get(name.lower())
+        if hit:
+            normalized.append(hit)
+        else:
+            unknown.append(name)
+    if unknown:
+        allowed = ", ".join(sorted(ALL_TOOLS))
+        raise ValueError(f"Unknown tools: {', '.join(unknown)}. Allowed tools: {allowed}")
+    return normalized
+
+
+def resolve_enabled_tools(
+    *,
+    enable_tier3: bool = False,
+    disable_tier2: bool = False,
+    enable_all: bool = False,
+    explicit_tools: list[str] | None = None,
+    exclude_tools: list[str] | None = None,
+) -> set[str]:
+    """Resolve active tools.
+
+    Precedence: explicit tools > tier toggles.
     """
-    if tools:
-        # Explicit tool list overrides tiers
-        enabled = tools
+    explicit_tools = explicit_tools or []
+    exclude_tools = exclude_tools or []
+
+    if explicit_tools:
+        enabled = set(normalize_tool_names(explicit_tools))
+    elif enable_all:
+        enabled = set(ALL_TOOLS)
     else:
-        enabled = TOOL_TIERS["tier1"].copy()
+        enabled = set(TOOL_TIERS["tier1"])
         if not disable_tier2:
             enabled |= TOOL_TIERS["tier2"]
-        if enable_all:
+        if enable_tier3:
             enabled |= TOOL_TIERS["tier3"]
 
     if exclude_tools:
-        enabled -= exclude_tools
+        enabled -= set(normalize_tool_names(exclude_tools))
 
     return enabled
 
 
-def filter_tools(mcp, enabled_tools):
-    """Remove tools not in the enabled set from the MCP server.
-
-    Args:
-        mcp: FastMCP instance
-        enabled_tools: Set of tool names to keep enabled
-
-    Returns:
-        Dictionary with counts: {"enabled": int, "disabled": int, "total": int}
-    """
-    all_tools = list(mcp._tool_manager._tools.keys())
-    total_count = len(all_tools)
-
-    # Remove disabled tools
-    for name in all_tools:
-        if name not in enabled_tools:
-            del mcp._tool_manager._tools[name]
-
-    enabled_count = len(enabled_tools)
-    disabled_count = total_count - enabled_count
-
-    return {"enabled": enabled_count, "disabled": disabled_count, "total": total_count}
-
-
-def get_tier_names(enabled_tools):
-    """Get list of enabled tier names based on tools.
-
-    Args:
-        enabled_tools: Set of enabled tool names
-
-    Returns:
-        List of enabled tier names (e.g., ["1", "2"] or ["1", "2", "3"])
-    """
+def get_tier_names(enabled_tools: set[str]) -> list[str]:
     enabled_tiers = []
-
     if TOOL_TIERS["tier1"] & enabled_tools:
         enabled_tiers.append("1")
     if TOOL_TIERS["tier2"] & enabled_tools:
         enabled_tiers.append("2")
     if TOOL_TIERS["tier3"] & enabled_tools:
         enabled_tiers.append("3")
-
     return enabled_tiers
+
+
+def filter_tools(mcp, enabled_tools: set[str]) -> dict[str, int]:
+    all_tools = list(mcp._tool_manager._tools.keys())
+    total_count = len(all_tools)
+    for name in all_tools:
+        if name not in enabled_tools:
+            del mcp._tool_manager._tools[name]
+    return {"enabled": len(enabled_tools), "disabled": total_count - len(enabled_tools), "total": total_count}
