@@ -83,6 +83,9 @@ winremote-mcp
 # Start with remote access and authentication
 winremote-mcp --host 0.0.0.0 --port 8090 --auth-key "your-secret-key"
 
+# Enable all tools including high-risk Tier 3 (Shell, FileWrite, etc.)
+winremote-mcp --enable-all
+
 # Start with hot reload for development
 winremote-mcp --reload
 ```
@@ -124,6 +127,26 @@ winremote-mcp install
 # Remove scheduled task  
 winremote-mcp uninstall
 ```
+
+## Security
+
+Tools are organized into three risk tiers. By default, only Tier 1-2 tools are enabled.
+
+| Tier | Risk | Default | Examples |
+|------|------|---------|----------|
+| **Tier 1** | Read-only | ✅ Enabled | Snapshot, GetSystemInfo, ListProcesses |
+| **Tier 2** | Interactive | ✅ Enabled | Click, Type, Shortcut, App |
+| **Tier 3** | Destructive | ❌ Disabled | Shell, FileWrite, KillProcess, RegWrite |
+
+```bash
+# Enable all tiers (use with caution)
+winremote-mcp --enable-all
+
+# Always use auth for remote access
+winremote-mcp --host 0.0.0.0 --auth-key "your-secret-key"
+```
+
+See [SECURITY.md](SECURITY.md) for the full security guide.
 
 ## Tools
 
