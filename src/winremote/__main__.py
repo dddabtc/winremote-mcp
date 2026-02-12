@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import os
+import platform
 import subprocess
 import time
 from datetime import datetime
@@ -67,6 +69,76 @@ def _check_win32(tool_name: str = "This tool") -> str | None:
     return None
 
 
+def _ensure_session_connected() -> str | None:
+    """Reconnect disconnected Windows session to console if needed.
+
+    Returns None on success, error string on failure.
+    """
+    try:
+        # Query current sessions
+        result = subprocess.run(
+            ["query", "session"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0:
+            return f"Failed to query sessions: {result.stderr}"
+
+        session_lines = result.stdout.strip().split("\n")
+        user_session_id = None
+        session_status = None
+
+        # Parse session output to find user session
+        for line in session_lines[1:]:  # Skip header
+            if not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) >= 3:
+                session_name = parts[0]
+                username = parts[1] if parts[1] != ">" else parts[2]
+                session_id = parts[2] if parts[1] != ">" else parts[1]
+                state = parts[3] if parts[1] != ">" else parts[2]
+
+                # Look for a user session (not services or console without user)
+                if (
+                    username
+                    and username.lower() not in ["", "services"]
+                    and session_name.lower() not in ["services", "console"]
+                    and session_id.isdigit()
+                ):
+                    user_session_id = int(session_id)
+                    session_status = state.lower()
+                    break
+
+        if user_session_id is None:
+            return "No user session found to reconnect"
+
+        # If session is already active, no need to reconnect
+        if session_status == "active":
+            return None
+
+        # Reconnect session to console
+        result = subprocess.run(
+            ["tscon", str(user_session_id), "/dest:console"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode == 0:
+            return None  # Success
+        else:
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return f"Failed to reconnect session {user_session_id}: {error_msg}"
+
+    except subprocess.TimeoutExpired:
+        return "Session reconnect operation timed out"
+    except Exception as e:
+        return f"Session reconnect error: {e}"
+
+
 # ============================= DESKTOP CONTROL =============================
 
 
@@ -80,7 +152,7 @@ def _check_win32(tool_name: str = "This tool") -> str | None:
 def Snapshot(
     use_vision: bool | str = True,
     quality: int = 75,
-    max_width: int = 1920,
+    max_width: int = 0,
     monitor: int = 0,
 ) -> list:
     """Capture desktop screenshot, window list, and interactive UI elements.
@@ -88,7 +160,7 @@ def Snapshot(
     Args:
         use_vision: Include screenshot image (default True).
         quality: JPEG quality 1-100 (default 75). Lower = smaller.
-        max_width: Max image width in pixels (default 1920). Resized keeping aspect ratio.
+        max_width: Max image width in pixels. 0=native resolution (default). Set to e.g. 1920 to downscale.
         monitor: Monitor to capture. 0=all monitors (default), 1/2/3=specific monitor.
 
     Returns a list containing:
@@ -99,9 +171,21 @@ def Snapshot(
         parts = []
         use_vision = _tobool(use_vision)
 
-        # Screenshot
+        # Screenshot (auto-reconnect session if grab fails)
         if use_vision:
-            b64 = desktop.take_screenshot(quality=quality, max_width=max_width, monitor=monitor)
+            try:
+                b64 = desktop.take_screenshot(quality=quality, max_width=max_width, monitor=monitor)
+            except Exception as screenshot_error:
+                # Check if a disconnected session is the cause
+                reconnect_result = _ensure_session_connected()
+                if reconnect_result is not None:
+                    # Session wasn't disconnected (or reconnect failed) — not a session issue
+                    return [f"Snapshot error: {screenshot_error}"]
+                # Session was disconnected and reconnected, retry
+                try:
+                    b64 = desktop.take_screenshot(quality=quality, max_width=max_width, monitor=monitor)
+                except Exception as retry_error:
+                    return [f"Snapshot error (after session reconnect): {retry_error}"]
             parts.append(ImageContent(type="image", data=b64, mimeType="image/jpeg"))
 
         # Window list
@@ -535,6 +619,91 @@ def GetSystemInfo() -> str:
         return process_mgr.get_system_info()
     except Exception as e:
         return f"GetSystemInfo error: {e}"
+
+
+def _ensure_session_connected(force: bool = False) -> str | None:
+    """Reconnect a disconnected desktop session to console.
+
+    Returns None on success or if already connected, error string on failure.
+    """
+    try:
+        result = subprocess.run(["query", "session"], capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            return f"Failed to query sessions: {result.stderr}"
+
+        lines = result.stdout.strip().split("\n")
+        user_session_id = None
+        is_disconnected = False
+
+        for line in lines[1:]:
+            line = line.lstrip(">").strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            # Format: sessionname username ID state ...
+            # or:     sessionname          ID state ... (no user)
+            name = parts[0].lower()
+            if name in ("services", "rdp-tcp"):
+                continue
+            # Find the numeric session ID and state
+            for i, p in enumerate(parts[1:], 1):
+                if p.isdigit():
+                    sid = int(p)
+                    if i + 1 < len(parts):
+                        state = parts[i + 1].lower()
+                        # Check if there's a username before the ID
+                        has_user = i > 1 and not parts[i - 1].isdigit()
+                        if has_user or name == "console":
+                            user_session_id = sid
+                            # Chinese Windows: 已断开=Disc, 运行中=Active
+                            is_disconnected = state in (
+                                "disc",
+                                "断开",
+                                "已断开",
+                                "disconnected",
+                            )
+                    break
+
+        if user_session_id is None:
+            return "No user session found"
+
+        if not is_disconnected and not force:
+            return None  # Already connected
+
+        result = subprocess.run(
+            ["tscon", str(user_session_id), "/dest:console"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            err = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return f"tscon failed: {err}"
+        time.sleep(1)  # Wait for session to stabilize
+        return None
+    except subprocess.TimeoutExpired:
+        return "Session reconnect timed out"
+    except Exception as e:
+        return f"Session reconnect error: {e}"
+
+
+@mcp.tool(annotations=ToolAnnotations(title="ReconnectSession", readOnlyHint=False))
+def ReconnectSession(force: bool = False) -> list:
+    """Reconnect a disconnected Windows desktop session to the console.
+
+    This enables screenshot and UI automation tools to work when no RDP
+    client is actively connected. Runs 'tscon' to attach the user's
+    session to the console.
+
+    Args:
+        force: Reconnect even if session appears active (default False).
+    """
+    err = _ensure_session_connected(force=force)
+    if err:
+        return [TextContent(type="text", text=f"ReconnectSession failed: {err}")]
+    return [TextContent(type="text", text="Session connected to console")]
 
 
 @mcp.tool(
@@ -1162,7 +1331,7 @@ def ScreenRecord(
 def AnnotatedSnapshot(
     max_elements: int = 30,
     quality: int = 75,
-    max_width: int = 1920,
+    max_width: int = 0,
 ) -> list:
     """Take a screenshot with numbered labels on interactive UI elements.
 
@@ -1172,16 +1341,30 @@ def AnnotatedSnapshot(
     Args:
         max_elements: Maximum number of elements to annotate (default 30).
         quality: JPEG quality 1-100 (default 75).
-        max_width: Max image width in pixels (default 1920).
+        max_width: Max image width in pixels. 0=native resolution (default).
     """
     try:
         import io
 
         from PIL import ImageDraw, ImageFont, ImageGrab
 
-        # Take screenshot
-        img = ImageGrab.grab()
-        if img.width > max_width:
+        # Take screenshot (auto-reconnect session if grab fails)
+        try:
+            img = ImageGrab.grab()
+        except Exception as screenshot_error:
+            reconnect_result = _ensure_session_connected()
+            if reconnect_result is not None:
+                return [TextContent(type="text", text=f"AnnotatedSnapshot error: {screenshot_error}")]
+            try:
+                img = ImageGrab.grab()
+            except Exception as retry_error:
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"AnnotatedSnapshot error (after session reconnect): {retry_error}",
+                    )
+                ]
+        if max_width > 0 and img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)))
 
@@ -1385,6 +1568,8 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
     else:
         logging.getLogger("uvicorn.error").addFilter(BannerFilter())
         run_kwargs = dict(transport="streamable-http", host=host, port=port)
+        if platform.system() == "Windows":
+            os.environ.setdefault("NO_COLOR", "1")
         if reload:
             run_kwargs["uvicorn_args"] = {"reload": True}
         mcp.run(**run_kwargs)
@@ -1394,31 +1579,68 @@ def cli(ctx, transport: str, host: str, port: int, reload: bool, auth_key: str |
 def install():
     """Create a Windows scheduled task for auto-start."""
     import getpass
+    import os
 
     username = getpass.getuser()
-    task_cmd = f'schtasks /Create /SC ONSTART /TN "WinRemoteMCP" /TR "python -m winremote" /RU {username} /F'
+
+    # Create start_mcp.bat for Chinese Windows compatibility
+    python_exe = subprocess.run(["where", "python"], capture_output=True, text=True).stdout.strip().split("\n")[0]
+    bat_content = f"""@echo off
+rem winremote-mcp startup script with UTF-8 encoding for Chinese Windows
+set PYTHONIOENCODING=utf-8
+"{python_exe}" -m winremote %*
+"""
+
+    # Write batch file to user's profile directory
+    user_profile = os.environ.get("USERPROFILE", ".")
+    bat_path = os.path.join(user_profile, "start_mcp.bat")
+
+    try:
+        with open(bat_path, "w", encoding="utf-8") as f:
+            f.write(bat_content)
+        click.echo(f"[OK] Created startup script: {bat_path}")
+    except Exception as e:
+        click.echo(f"[ERROR] Failed to create startup script: {e}")
+        return
+
+    # Create scheduled task using the batch file
+    task_cmd = f'schtasks /Create /SC ONSTART /TN "WinRemoteMCP" /TR "{bat_path}" /RU {username} /F'
     try:
         result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
-            click.echo("✅ Scheduled task 'WinRemoteMCP' created for auto-start.")
+            click.echo("[OK] Scheduled task 'WinRemoteMCP' created for auto-start.")
+            click.echo("The server will start automatically on system boot.")
+            click.echo("Note: Uses start_mcp.bat for Chinese Windows compatibility.")
         else:
-            click.echo(f"❌ Failed to create task:\n{result.stderr or result.stdout}")
+            click.echo(f"[ERROR] Failed to create task:\n{result.stderr or result.stdout}")
     except Exception as e:
-        click.echo(f"❌ Error: {e}")
+        click.echo(f"[ERROR] Error: {e}")
 
 
 @cli.command()
 def uninstall():
     """Remove the WinRemoteMCP scheduled task."""
+    import os
+
     task_cmd = 'schtasks /Delete /TN "WinRemoteMCP" /F'
     try:
         result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
-            click.echo("✅ Scheduled task 'WinRemoteMCP' removed.")
+            click.echo("[OK] Scheduled task 'WinRemoteMCP' removed.")
         else:
-            click.echo(f"❌ Failed to remove task:\n{result.stderr or result.stdout}")
+            click.echo(f"[ERROR] Failed to remove task:\n{result.stderr or result.stdout}")
     except Exception as e:
-        click.echo(f"❌ Error: {e}")
+        click.echo(f"[ERROR] Error: {e}")
+
+    # Also remove the batch file
+    user_profile = os.environ.get("USERPROFILE", ".")
+    bat_path = os.path.join(user_profile, "start_mcp.bat")
+    try:
+        if os.path.exists(bat_path):
+            os.remove(bat_path)
+            click.echo(f"[OK] Removed startup script: {bat_path}")
+    except Exception as e:
+        click.echo(f"[ERROR] Failed to remove startup script: {e}")
 
 
 @cli.command()
