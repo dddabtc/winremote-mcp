@@ -23,7 +23,8 @@ winremote-mcp --host 0.0.0.0 --auth-key "$(openssl rand -hex 32)"
 ┌─────────────────────────────────────────────────────────────┐
 │  winremote-mcp server                                       │
 │  ├─ Auth middleware (--auth-key)                           │
-│  ├─ Tool tier filtering (--enable-tier3) [planned]         │
+│  ├─ IP allowlist middleware (--ip-allowlist)               │
+│  ├─ Tool controls (--enable-tier3/--disable-tier2/--tools) │
 │  └─ Rate limiting [planned]                                │
 └──────────────────────────┬──────────────────────────────────┘
                            │ pyautogui / pywin32 / subprocess
@@ -40,7 +41,7 @@ winremote-mcp --host 0.0.0.0 --auth-key "$(openssl rand -hex 32)"
 
 ## Tool Risk Tiers
 
-All 43 tools are categorized into 4 risk tiers:
+All 43 tools are categorized into 3 risk tiers:
 
 ### Tier 1 — Read-Only (Low Risk) ✅ Default: Enabled
 
@@ -126,6 +127,19 @@ Authorization: Bearer my-secret-key
 
 The `/health` endpoint is always public (for monitoring).
 
+### IP Allowlist
+
+Restrict which client IPs can access MCP endpoints:
+
+```bash
+# Allow only localhost + one LAN subnet
+winremote-mcp --ip-allowlist 127.0.0.1/32,192.168.1.0/24
+```
+
+- Supports single IPs and CIDR ranges (IPv4/IPv6)
+- Non-allowlisted clients receive `403 Forbidden`
+- `/health` remains accessible for monitoring
+
 ### Generating Strong Keys
 
 ```bash
@@ -178,6 +192,20 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
     }
 }
+```
+
+## Config File Security (winremote.toml)
+
+You can store security settings in config, with precedence:
+
+**CLI flags > config file > defaults**
+
+```toml
+[security]
+auth_key = "change-me"
+ip_allowlist = ["127.0.0.1/32", "192.168.1.0/24"]
+enable_tier3 = false
+disable_tier2 = false
 ```
 
 ## Deployment Scenarios
