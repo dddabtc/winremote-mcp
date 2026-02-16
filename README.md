@@ -40,6 +40,48 @@ That's it! Your Windows MCP server is now running on `http://127.0.0.1:8090` and
 - **Advanced Features** — OCR text extraction, screen recording (GIF), annotated screenshots with UI element labels
 - **Security & Auth** — Optional API key authentication, localhost-only binding by default
 
+## 🤖 OpenClaw Integration
+
+winremote-mcp works great with [OpenClaw](https://github.com/openclaw/openclaw) — providing full Windows desktop control as an MCP endpoint for AI agents.
+
+### Setup with OpenClaw
+
+1. **Start winremote-mcp on your Windows machine:**
+   ```bash
+   pip install winremote-mcp
+   winremote-mcp --port 8090
+   ```
+
+2. **Configure OpenClaw to use it** — add to your `openclaw.json`:
+   ```json
+   {
+     "plugins": {
+       "entries": {
+         "winremote": {
+           "type": "mcp",
+           "url": "http://<WINDOWS_IP>:8090/mcp"
+         }
+       }
+     }
+   }
+   ```
+
+3. **That's it.** Your AI agent can now:
+   - Execute PowerShell/CMD commands on Windows
+   - Take screenshots of the desktop
+   - Transfer files between Linux and Windows
+   - Control GUI applications
+   - Access Windows-specific tools and APIs
+
+### No-Auth Mode (for trusted networks)
+
+For home lab / LAN setups where authentication isn't needed:
+```bash
+winremote-mcp --port 8090 --no-auth
+```
+
+> **Note:** winremote-mcp is a standard MCP server — it works with any MCP-compatible client, not just OpenClaw.
+
 ## Installation
 
 ### From PyPI (Recommended)
