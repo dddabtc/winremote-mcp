@@ -22,6 +22,13 @@ winremote-mcp
 
 That's it! Your Windows MCP server is now running on `http://127.0.0.1:8090` and ready to accept commands from MCP clients like Claude Desktop or OpenClaw.
 
+## What's New in v0.4.8
+
+- ✅ Added compatibility with **fastmcp 3.x** internal tool registry changes
+- ✅ Kept compatibility with **fastmcp 2.x**
+- ✅ Fixed tool wrapping/filtering paths that could raise:
+  `AttributeError: 'FastMCP' object has no attribute '_tool_manager'`
+
 ## What Problem It Solves
 
 - **Remote Windows Control**: Control Windows desktops from anywhere through standardized MCP protocol
