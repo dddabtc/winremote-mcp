@@ -1534,10 +1534,11 @@ def _remove_tool(name: str) -> None:
     components = getattr(provider, "_components", None)
     if isinstance(components, dict):
         keys_to_remove = [
-            k for k, v in components.items() if isinstance(k, str) and k.startswith("tool:") and (
-                (getattr(v, "name", None) == name)
-                or k.split(":", 1)[1].split("@", 1)[0] == name
-            )
+            k
+            for k, v in components.items()
+            if isinstance(k, str)
+            and k.startswith("tool:")
+            and ((getattr(v, "name", None) == name) or k.split(":", 1)[1].split("@", 1)[0] == name)
         ]
         for k in keys_to_remove:
             components.pop(k, None)
