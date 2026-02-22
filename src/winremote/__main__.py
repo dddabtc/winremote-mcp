@@ -1495,15 +1495,65 @@ def GetRunningTasks() -> str:
 # ====================== Apply task manager wrapping ========================
 
 
+def _get_registered_tools() -> dict[str, object]:
+    """Return tool-name -> tool object map across fastmcp 2.x/3.x internals."""
+    # fastmcp 2.x
+    tool_mgr = getattr(mcp, "_tool_manager", None)
+    tools = getattr(tool_mgr, "_tools", None)
+    if isinstance(tools, dict):
+        return tools
+
+    # fastmcp 3.x
+    provider = getattr(mcp, "_local_provider", None)
+    components = getattr(provider, "_components", None)
+    if isinstance(components, dict):
+        out: dict[str, object] = {}
+        for comp_key, comp in components.items():
+            if not isinstance(comp_key, str) or not comp_key.startswith("tool:"):
+                continue
+            name = getattr(comp, "name", None)
+            if not isinstance(name, str) or not name:
+                name = comp_key.split(":", 1)[1].split("@", 1)[0]
+            out[name] = comp
+        return out
+
+    raise RuntimeError("Unsupported fastmcp internals: cannot locate registered tools")
+
+
+def _remove_tool(name: str) -> None:
+    """Remove a tool by name across fastmcp 2.x/3.x internals."""
+    # fastmcp 2.x
+    tool_mgr = getattr(mcp, "_tool_manager", None)
+    tools = getattr(tool_mgr, "_tools", None)
+    if isinstance(tools, dict):
+        tools.pop(name, None)
+        return
+
+    # fastmcp 3.x
+    provider = getattr(mcp, "_local_provider", None)
+    components = getattr(provider, "_components", None)
+    if isinstance(components, dict):
+        keys_to_remove = [
+            k for k, v in components.items() if isinstance(k, str) and k.startswith("tool:") and (
+                (getattr(v, "name", None) == name)
+                or k.split(":", 1)[1].split("@", 1)[0] == name
+            )
+        ]
+        for k in keys_to_remove:
+            components.pop(k, None)
+        return
+
+
 def _wrap_all_tools():
     """Wrap all registered MCP tools with task manager for error resilience + concurrency."""
     # Skip wrapping the task management tools themselves
     skip = {"CancelTask", "GetTaskStatus", "GetRunningTasks"}
-    for name, tool in mcp._tool_manager._tools.items():
+    for name, tool in _get_registered_tools().items():
         if name in skip:
             continue
-        original_fn = tool.fn
-        tool.fn = task_manager.wrap_sync_tool(name, original_fn)
+        original_fn = getattr(tool, "fn", None)
+        if callable(original_fn):
+            tool.fn = task_manager.wrap_sync_tool(name, original_fn)
 
 
 _wrap_all_tools()
@@ -1523,9 +1573,9 @@ def _choose_value(ctx: click.Context, name: str, cli_value, config_value, defaul
 
 
 def _apply_tool_filter(enabled_tools: set[str]) -> None:
-    for tool_name in list(mcp._tool_manager._tools.keys()):
+    for tool_name in list(_get_registered_tools().keys()):
         if tool_name not in enabled_tools:
-            del mcp._tool_manager._tools[tool_name]
+            _remove_tool(tool_name)
 
 
 # ================================== CLI ====================================
