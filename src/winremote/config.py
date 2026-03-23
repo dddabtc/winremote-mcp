@@ -16,6 +16,8 @@ class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8090
     auth_key: str | None = None
+    ssl_certfile: str | None = None
+    ssl_keyfile: str | None = None
 
 
 @dataclass
@@ -23,6 +25,8 @@ class SecurityConfig:
     ip_allowlist: list[str] = field(default_factory=list)
     enable_tier3: bool = False
     disable_tier2: bool = False
+    oauth_client_id: str | None = None
+    oauth_client_secret: str | None = None
 
 
 @dataclass
@@ -84,6 +88,10 @@ def load_config(path: Path | None) -> WinRemoteConfig:
         cfg.server.port = int(server["port"])
     if "auth_key" in server:
         cfg.server.auth_key = str(server["auth_key"])
+    if "ssl_certfile" in server:
+        cfg.server.ssl_certfile = str(server["ssl_certfile"]) or None
+    if "ssl_keyfile" in server:
+        cfg.server.ssl_keyfile = str(server["ssl_keyfile"]) or None
 
     if "ip_allowlist" in security:
         cfg.security.ip_allowlist = _list_of_strings(security["ip_allowlist"], "security.ip_allowlist")
@@ -91,6 +99,10 @@ def load_config(path: Path | None) -> WinRemoteConfig:
         cfg.security.enable_tier3 = bool(security["enable_tier3"])
     if "disable_tier2" in security:
         cfg.security.disable_tier2 = bool(security["disable_tier2"])
+    if "oauth_client_id" in security:
+        cfg.security.oauth_client_id = str(security["oauth_client_id"]) or None
+    if "oauth_client_secret" in security:
+        cfg.security.oauth_client_secret = str(security["oauth_client_secret"]) or None
 
     if "enable" in tools:
         cfg.tools.enable = _list_of_strings(tools["enable"], "tools.enable")

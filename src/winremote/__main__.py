@@ -1600,6 +1600,10 @@ def _apply_tool_filter(enabled_tools: set[str]) -> None:
 @click.option("--tools", default="", help="Comma-separated tools to enable (highest precedence)")
 @click.option("--exclude-tools", default="", help="Comma-separated tools to disable")
 @click.option("--ip-allowlist", default="", help="Comma-separated IPs/CIDRs allowed to access HTTP transport")
+@click.option("--ssl-certfile", default=None, help="Path to SSL certificate file for HTTPS")
+@click.option("--ssl-keyfile", default=None, help="Path to SSL private key file for HTTPS")
+@click.option("--oauth-client-id", default=None, envvar="WINREMOTE_OAUTH_CLIENT_ID", help="OAuth client ID whitelist")
+@click.option("--oauth-client-secret", default=None, envvar="WINREMOTE_OAUTH_CLIENT_SECRET", help="OAuth client secret")
 @click.pass_context
 def cli(
     ctx,
@@ -1615,6 +1619,10 @@ def cli(
     tools: str,
     exclude_tools: str,
     ip_allowlist: str,
+    ssl_certfile: str | None,
+    ssl_keyfile: str | None,
+    oauth_client_id: str | None,
+    oauth_client_secret: str | None,
 ):
     """Start the winremote MCP server."""
     if ctx.invoked_subcommand is not None:
@@ -1626,6 +1634,10 @@ def cli(
     host = _choose_value(ctx, "host", host, cfg.server.host, "127.0.0.1")
     port = int(_choose_value(ctx, "port", port, cfg.server.port, 8090))
     auth_key = _choose_value(ctx, "auth_key", auth_key, cfg.server.auth_key, None)
+    ssl_certfile = _choose_value(ctx, "ssl_certfile", ssl_certfile, cfg.server.ssl_certfile, None)
+    ssl_keyfile = _choose_value(ctx, "ssl_keyfile", ssl_keyfile, cfg.server.ssl_keyfile, None)
+    oauth_client_id = _choose_value(ctx, "oauth_client_id", oauth_client_id, cfg.security.oauth_client_id, None)
+    oauth_client_secret = _choose_value(ctx, "oauth_client_secret", oauth_client_secret, cfg.security.oauth_client_secret, None)
 
     enable_tier3 = bool(_choose_value(ctx, "enable_tier3", enable_tier3, cfg.security.enable_tier3, False))
     disable_tier2 = bool(_choose_value(ctx, "disable_tier2", disable_tier2, cfg.security.disable_tier2, False))
@@ -1648,6 +1660,30 @@ def cli(
     _apply_tool_filter(enabled_tools)
     enabled_tiers = get_tier_names(enabled_tools)
 
+    # ---- OAuth setup ----
+    oauth_store = None
+    oauth_validator = None
+    use_oauth = bool(oauth_client_id or oauth_client_secret)
+
+    if use_oauth and transport != "stdio":
+        from winremote.oauth import OAuthStore, build_oauth_routes, validate_oauth_token
+
+        oauth_store = OAuthStore()
+        scheme = "https" if (ssl_certfile and ssl_keyfile) else "http"
+        issuer = f"{scheme}://{host}:{port}"
+
+        routes = build_oauth_routes(
+            store=oauth_store,
+            issuer=issuer,
+            configured_client_id=oauth_client_id,
+            configured_client_secret=oauth_client_secret,
+        )
+        for path, (handler, methods) in routes.items():
+            mcp.custom_route(path, methods=methods)(handler)
+
+        oauth_validator = lambda tok: validate_oauth_token(oauth_store, tok)  # noqa: E731
+
+    # ---- Middleware ----
     middleware: list[Middleware] = []
 
     if allowlist_entries:
@@ -1657,7 +1693,11 @@ def cli(
     if auth_key:
         from winremote.auth import AuthKeyMiddleware
 
-        middleware.append(Middleware(AuthKeyMiddleware, auth_key=auth_key))
+        middleware.append(Middleware(AuthKeyMiddleware, auth_key=auth_key, oauth_validator=oauth_validator))
+    elif oauth_validator:
+        from winremote.auth import OAuthOnlyMiddleware
+
+        middleware.append(Middleware(OAuthOnlyMiddleware, oauth_validator=oauth_validator))
 
     import logging
 
@@ -1670,6 +1710,8 @@ def cli(
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
                 auth_line = "[auth ON]" if auth_key else "[no auth]"
+                ssl_line = "[https ON]" if (ssl_certfile and ssl_keyfile) else ""
+                oauth_line = "[oauth ON]" if use_oauth else ""
                 bind_line = f"[{host}:{port}]"
                 tiers_line = f"[tiers: {','.join(enabled_tiers)}]"
                 tools_line = f"[tools: {len(enabled_tools)}/{len(ALL_TOOLS)}]"
@@ -1681,6 +1723,8 @@ def cli(
                     f"{pad}|  by dddabtc                      |",
                     f"{pad}|  github.com/dddabtc              |",
                     f"{pad}|  {auth_line:<32s}|",
+                    *(([f"{pad}|  {ssl_line:<32s}|"] if ssl_line else [])),
+                    *(([f"{pad}|  {oauth_line:<32s}|"] if oauth_line else [])),
                     f"{pad}|  {bind_line:<32s}|",
                     f"{pad}|  {tiers_line:<16s}{tools_line:<16s}|",
                     f"{pad}+----------------------------------+",
@@ -1702,8 +1746,14 @@ def cli(
             run_kwargs["middleware"] = middleware
         if platform.system() == "Windows":
             os.environ.setdefault("NO_COLOR", "1")
+        uvicorn_args = {}
         if reload:
-            run_kwargs["uvicorn_args"] = {"reload": True}
+            uvicorn_args["reload"] = True
+        if ssl_certfile and ssl_keyfile:
+            uvicorn_args["ssl_certfile"] = ssl_certfile
+            uvicorn_args["ssl_keyfile"] = ssl_keyfile
+        if uvicorn_args:
+            run_kwargs["uvicorn_args"] = uvicorn_args
         mcp.run(**run_kwargs)
 
 

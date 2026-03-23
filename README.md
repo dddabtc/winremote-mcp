@@ -162,11 +162,15 @@ Search order:
 host = "127.0.0.1"
 port = 8090
 auth_key = ""
+ssl_certfile = ""       # Path to SSL certificate for HTTPS
+ssl_keyfile = ""        # Path to SSL private key for HTTPS
 
 [security]
 ip_allowlist = ["127.0.0.1", "192.168.1.0/24"]
 enable_tier3 = false
 disable_tier2 = false
+oauth_client_id = ""    # Expected OAuth client ID (optional)
+oauth_client_secret = "" # OAuth client secret for confidential clients
 
 [tools]
 enable = ["Snapshot", "Click", "Type"]
@@ -184,6 +188,67 @@ winremote-mcp --ip-allowlist 127.0.0.1,192.168.1.0/24
 ```
 
 Supports both single IPs and CIDR ranges (IPv4/IPv6). Non-allowlisted clients receive HTTP 403 with a clear error.
+
+### HTTPS / TLS
+
+Enable HTTPS by providing an SSL certificate and key:
+
+```bash
+# Generate a self-signed certificate (for testing)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+
+# Start with HTTPS
+winremote-mcp --host 0.0.0.0 --ssl-certfile cert.pem --ssl-keyfile key.pem --auth-key "secret"
+```
+
+Or configure in `winremote.toml`:
+```toml
+[server]
+ssl_certfile = "/path/to/cert.pem"
+ssl_keyfile = "/path/to/key.pem"
+```
+
+When both are provided, the startup banner shows `[https ON]`.
+
+### OAuth 2.0 (MCP spec compatible)
+
+WinRemote supports OAuth 2.0 Authorization Code + PKCE flow, compatible with the MCP specification (2025-03). This enables Claude Desktop and other MCP clients to authenticate using their built-in OAuth support.
+
+**Endpoints provided:**
+- `GET /.well-known/oauth-authorization-server` — RFC 8414 metadata
+- `POST /oauth/register` — RFC 7591 dynamic client registration
+- `GET /oauth/authorize` — Authorization endpoint (PKCE required)
+- `POST /oauth/token` — Token exchange
+
+**Enable OAuth via CLI:**
+```bash
+winremote-mcp --oauth-client-id "my-client-id" --oauth-client-secret "my-secret"
+```
+
+**Or via config:**
+```toml
+[security]
+oauth_client_id = "my-client-id"
+oauth_client_secret = "my-secret"
+```
+
+- If `--oauth-client-id` is set, only that client ID is accepted; otherwise dynamic registration creates new client IDs automatically.
+- OAuth works alongside `--auth-key` — both API key and OAuth Bearer tokens are accepted.
+- If only OAuth is configured (no `--auth-key`), all non-public endpoints require a valid OAuth token.
+
+**Claude Desktop with HTTPS + OAuth (`claude_desktop_config.json`):**
+```json
+{
+  "mcpServers": {
+    "winremote": {
+      "type": "streamable-http",
+      "url": "https://192.168.1.100:8090/mcp",
+      "oauth_client_id": "my-client-id",
+      "oauth_client_secret": "my-secret"
+    }
+  }
+}
+```
 
 ### Health check
 ```bash
