@@ -23,6 +23,7 @@ from starlette.responses import JSONResponse, RedirectResponse
 # In-memory stores
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RegisteredClient:
     client_id: str
@@ -61,6 +62,7 @@ class OAuthStore:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _base64url_decode(s: str) -> bytes:
     import base64
 
@@ -90,6 +92,7 @@ CODE_LIFETIME = 300  # 5 minutes
 # Route handlers  (registered via mcp.custom_route in __main__)
 # ---------------------------------------------------------------------------
 
+
 def build_oauth_routes(
     store: OAuthStore,
     issuer: str,
@@ -102,16 +105,18 @@ def build_oauth_routes(
     # /.well-known/oauth-authorization-server  (RFC 8414)
     # ------------------------------------------------------------------
     async def metadata(request: Request):
-        return JSONResponse({
-            "issuer": issuer,
-            "authorization_endpoint": f"{issuer}/oauth/authorize",
-            "token_endpoint": f"{issuer}/oauth/token",
-            "registration_endpoint": f"{issuer}/oauth/register",
-            "response_types_supported": ["code"],
-            "grant_types_supported": ["authorization_code"],
-            "code_challenge_methods_supported": ["S256", "plain"],
-            "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
-        })
+        return JSONResponse(
+            {
+                "issuer": issuer,
+                "authorization_endpoint": f"{issuer}/oauth/authorize",
+                "token_endpoint": f"{issuer}/oauth/token",
+                "registration_endpoint": f"{issuer}/oauth/register",
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code"],
+                "code_challenge_methods_supported": ["S256", "plain"],
+                "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
+            }
+        )
 
     # ------------------------------------------------------------------
     # POST /oauth/register  (RFC 7591 dynamic client registration)
@@ -278,11 +283,13 @@ def build_oauth_routes(
             expires_at=time.time() + TOKEN_LIFETIME,
         )
 
-        return JSONResponse({
-            "access_token": access_token,
-            "token_type": "Bearer",
-            "expires_in": TOKEN_LIFETIME,
-        })
+        return JSONResponse(
+            {
+                "access_token": access_token,
+                "token_type": "Bearer",
+                "expires_in": TOKEN_LIFETIME,
+            }
+        )
 
     return {
         "/.well-known/oauth-authorization-server": (metadata, ["GET"]),
@@ -295,6 +302,7 @@ def build_oauth_routes(
 # ---------------------------------------------------------------------------
 # Token validation (used by auth middleware)
 # ---------------------------------------------------------------------------
+
 
 def validate_oauth_token(store: OAuthStore, token: str) -> bool:
     """Return True if the token is a valid, non-expired OAuth access token."""

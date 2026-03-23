@@ -1638,8 +1638,11 @@ def cli(
     ssl_keyfile = _choose_value(ctx, "ssl_keyfile", ssl_keyfile, cfg.server.ssl_keyfile, None)
     oauth_client_id = _choose_value(ctx, "oauth_client_id", oauth_client_id, cfg.security.oauth_client_id, None)
     oauth_client_secret = _choose_value(
-        ctx, "oauth_client_secret", oauth_client_secret,
-        cfg.security.oauth_client_secret, None,
+        ctx,
+        "oauth_client_secret",
+        oauth_client_secret,
+        cfg.security.oauth_client_secret,
+        None,
     )
 
     enable_tier3 = bool(_choose_value(ctx, "enable_tier3", enable_tier3, cfg.security.enable_tier3, False))
@@ -1726,8 +1729,8 @@ def cli(
                     f"{pad}|  by dddabtc                      |",
                     f"{pad}|  github.com/dddabtc              |",
                     f"{pad}|  {auth_line:<32s}|",
-                    *(([f"{pad}|  {ssl_line:<32s}|"] if ssl_line else [])),
-                    *(([f"{pad}|  {oauth_line:<32s}|"] if oauth_line else [])),
+                    *([f"{pad}|  {ssl_line:<32s}|"] if ssl_line else []),
+                    *([f"{pad}|  {oauth_line:<32s}|"] if oauth_line else []),
                     f"{pad}|  {bind_line:<32s}|",
                     f"{pad}|  {tiers_line:<16s}{tools_line:<16s}|",
                     f"{pad}+----------------------------------+",
