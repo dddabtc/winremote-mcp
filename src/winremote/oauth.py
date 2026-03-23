@@ -11,15 +11,13 @@ Supports:
 from __future__ import annotations
 
 import hashlib
-import html
 import secrets
 import time
 import urllib.parse
 from dataclasses import dataclass, field
 
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
-
+from starlette.responses import JSONResponse, RedirectResponse
 
 # ---------------------------------------------------------------------------
 # In-memory stores

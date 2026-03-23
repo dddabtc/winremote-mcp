@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import base64
+import hashlib
 import secrets
 import time
 
-import pytest
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -15,7 +14,6 @@ from starlette.testclient import TestClient
 
 from winremote.auth import AuthKeyMiddleware, OAuthOnlyMiddleware
 from winremote.oauth import OAuthStore, build_oauth_routes, validate_oauth_token
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -134,7 +132,7 @@ class TestOAuthFlow:
         assert "state=xyz" in location
 
         # Extract code from redirect
-        from urllib.parse import urlparse, parse_qs
+        from urllib.parse import parse_qs, urlparse
         parsed = urlparse(location)
         code = parse_qs(parsed.query)["code"][0]
 
@@ -193,7 +191,7 @@ class TestOAuthFlow:
             "code_challenge": challenge,
             "code_challenge_method": "S256",
         })
-        from urllib.parse import urlparse, parse_qs
+        from urllib.parse import parse_qs, urlparse
         code = parse_qs(urlparse(auth_resp.headers["location"]).query)["code"][0]
 
         # Use wrong verifier
@@ -222,7 +220,7 @@ class TestOAuthFlow:
             "code_challenge": challenge,
             "code_challenge_method": "S256",
         })
-        from urllib.parse import urlparse, parse_qs
+        from urllib.parse import parse_qs, urlparse
         code = parse_qs(urlparse(auth_resp.headers["location"]).query)["code"][0]
 
         # First exchange succeeds

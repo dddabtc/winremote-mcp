@@ -1637,7 +1637,10 @@ def cli(
     ssl_certfile = _choose_value(ctx, "ssl_certfile", ssl_certfile, cfg.server.ssl_certfile, None)
     ssl_keyfile = _choose_value(ctx, "ssl_keyfile", ssl_keyfile, cfg.server.ssl_keyfile, None)
     oauth_client_id = _choose_value(ctx, "oauth_client_id", oauth_client_id, cfg.security.oauth_client_id, None)
-    oauth_client_secret = _choose_value(ctx, "oauth_client_secret", oauth_client_secret, cfg.security.oauth_client_secret, None)
+    oauth_client_secret = _choose_value(
+        ctx, "oauth_client_secret", oauth_client_secret,
+        cfg.security.oauth_client_secret, None,
+    )
 
     enable_tier3 = bool(_choose_value(ctx, "enable_tier3", enable_tier3, cfg.security.enable_tier3, False))
     disable_tier2 = bool(_choose_value(ctx, "disable_tier2", disable_tier2, cfg.security.disable_tier2, False))
