@@ -43,7 +43,7 @@ jobs:
         run: |
           pip install pytest-cov
           python -m pytest tests/ --ignore=tests/test_desktop_tools.py --cov=src --cov-report=xml --cov-report=term-missing
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.python-version == '3.12'
         with:
           name: coverage
