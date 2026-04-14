@@ -28,7 +28,7 @@ The solution is to use the **AI's own vision capability** to understand the scre
 ┌─────────────────────────────────────────────┐
 │  Claude Desktop / MCP Client                │
 │                                             │
-│  1. Call Snapshot() ─────────────────────►   │
+│  1. Call Snapshot() ─────────────────────►  │
 │  2. Receive screenshot image ◄──────────    │
 │  3. Claude's vision analyzes the image      │
 │  4. Identifies "Connect" button at (520,340)│
