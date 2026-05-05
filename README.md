@@ -233,6 +233,30 @@ exclude = ["ScreenRecord"]   # disable specific tools
 
 > **Note:** winremote-mcp is a standard MCP server and works with any MCP-compatible client — Claude Desktop, Cursor, OpenClaw, and others.
 
+## What's New in v0.4.21
+
+### 📚 README release notes cleanup
+
+- README now keeps only the latest three `What's New` sections.
+- Older release notes now point to the full [CHANGELOG](CHANGELOG.md) to keep the README focused.
+
+## What's New in v0.4.20
+
+### 🔒 Security hardening
+
+- Remote HTTP access now requires authentication by default. Non-loopback binds are refused unless you configure `--auth-key` or OAuth confidential-client auth.
+- `--allow-insecure-remote` is still available, but only as an explicit legacy / lab-only break-glass option.
+- OAuth dynamic client registration is disabled. OAuth now requires a pre-provisioned confidential client with client ID and client secret.
+- OAuth now requires PKCE `S256` and loopback redirect URIs.
+- `Scrape` and `PlaySound` URL fetching now blocks private, loopback, link-local, multicast, reserved, and unspecified targets to reduce SSRF risk.
+- `App` and `PlaySound` moved to Tier 3 because they can start programs or trigger server-side effects.
+
+### 🛡️ CI and supply-chain checks
+
+- Added CI security scans with Bandit, pip-audit, and zizmor.
+- Raised minimum dependency versions for FastMCP, Pillow, Authlib, cryptography, python-multipart, pytest, and Pygments.
+- Tightened GitHub Actions permissions and pinned workflow actions to immutable SHAs.
+
 ## What's New in v0.4.19
 
 ### 🤖 Hermes Integration
@@ -240,110 +264,7 @@ exclude = ["ScreenRecord"]   # disable specific tools
 - Added a Hermes setup guide for connecting winremote-mcp as a native MCP server.
 - Added README links to client-specific integration guides in this repository.
 
-## What's New in v0.4.18
-
-### 🔒 Security Hardening & Bug Fixes
-
-Comprehensive security audit and fix pass across the entire codebase:
-
-- **Fixed command injection** in Shell (`cwd`), Services (filter), Desktop (`launch_app`, `show_notification`), and `install`/`uninstall` CLI commands — all user inputs now properly escaped with PowerShell single-quote quoting or subprocess list form.
-- **Fixed OAuth token bypass** — `client_secret` is now mandatory when the client has one configured (previously could be omitted to skip validation).
-- **Fixed coordinate (0,0) unreachable** — `Type`, `Scroll`, and `Move` tools now correctly handle coordinates where x or y is zero.
-- **Fixed AnnotatedSnapshot performance** — no longer takes redundant extra screenshots for scale calculation.
-- **Fixed ScreenRecord** — duration clamped to 0.1–10s, fps to 1–10; fixed GIF size calculation.
-- **Added FileUpload size limit** — rejects base64 payloads over 100 MB.
-- **Removed dead code** — duplicate `_ensure_session_connected()` function removed.
-- **Hardened XML escaping** in toast notifications to prevent injection via title/message.
-- **Improved temp file cleanup** — PlaySound now cleans up downloaded files in `finally` block.
-- **TaskManager** — cancel operations now hold lock during status transition.
-
-## What's New in v0.4.17
-
-### 🔧 PlaySound Fix
-
-Fixed PlaySound tool not working through the MCP interface:
-
-- **Parameters now accept `null`** — MCP clients that pass `null` for omitted params no longer get a `ValidationError`.
-- **Audio actually plays** — switched from async `Play()` to `PlaySync()` for WAV; the old implementation caused PowerShell to exit before audio could start.
-- **Removed `System.Windows.Forms` dependency** — no longer loads an unnecessary assembly that could fail in non-interactive/service sessions.
-- **Real .mp3/.ogg support** — non-WAV formats now route through WPF `MediaPlayer` instead of `SoundPlayer` (which only handles `.wav`).
-- **Path sanitisation** — prevents PowerShell injection via crafted file paths.
-
-## What's New in v0.4.16
-
-### 🔊 PlaySound Tool
-
-New Tier 1 tool to play audio files on the Windows host. Supports `.wav`, `.mp3`, `.ogg` from local path or URL.
-
-## What's New in v0.4.9
-
-### 🔒 HTTPS / TLS Support
-
-You can now run WinRemote MCP over HTTPS — required for remote access and for tools like Claude Desktop that need a secure connection.
-
-**Step 1 — Generate a self-signed certificate** (for local/LAN use):
-```bash
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
-```
-
-**Step 2 — Start the server with TLS:**
-```bash
-winremote-mcp --ssl-certfile cert.pem --ssl-keyfile key.pem --host 0.0.0.0 --port 8090
-```
-
-Or in `winremote.toml`:
-```toml
-[server]
-host         = "0.0.0.0"
-port         = 8090
-ssl_certfile = "C:/Users/you/cert.pem"
-ssl_keyfile  = "C:/Users/you/key.pem"
-```
-
-When active, the startup banner shows **`[https ON]`** and the server listens on `https://`.
-
-**Claude Desktop config** (`claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "winremote": {
-      "type": "http",
-      "url": "https://192.168.1.100:8090/mcp/",
-      "headers": { "Authorization": "Bearer YOUR_AUTH_KEY" }
-    }
-  }
-}
-```
-
-> **Tip:** For a trusted certificate (no browser warning), use [mkcert](https://github.com/FiloSottile/mkcert): `mkcert -install && mkcert 192.168.1.100`
-
----
-
-### 🔑 OAuth 2.0 Support (closes #33)
-
-WinRemote now ships a built-in OAuth 2.0 Authorization Server, so clients like Claude Desktop can authenticate via OAuth instead of a static API key.
-
-```bash
-winremote-mcp --ssl-certfile cert.pem --ssl-keyfile key.pem \
-                --oauth-client-id my-client --oauth-client-secret my-secret
-```
-
-The server exposes the standard MCP OAuth endpoints:
-- `GET /.well-known/oauth-authorization-server`
-- `POST /oauth/register`
-- `GET /oauth/authorize`
-- `POST /oauth/token`
-
-Startup banner shows **`[oauth ON]`** when enabled. Existing `--auth-key` Bearer token auth still works unchanged.
-
----
-
-## What's New in v0.4.8
-
-- ✅ Added compatibility with **fastmcp 3.x** internal tool registry changes
-- ✅ Kept compatibility with **fastmcp 2.x**
-- ✅ Fixed tool wrapping/filtering paths that could raise:
-  `AttributeError: 'FastMCP' object has no attribute '_tool_manager'`
+For older release notes, see the full [CHANGELOG](CHANGELOG.md).
 
 ## What Problem It Solves
 

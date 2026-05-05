@@ -2243,7 +2243,7 @@ wheels = [
 
 [[package]]
 name = "winremote-mcp"
-version = "0.4.20"
+version = "0.4.21"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
