@@ -6,10 +6,14 @@ from unittest.mock import MagicMock, patch
 
 
 def _call_tool(tool_name, **kwargs):
-    from winremote.__main__ import _get_registered_tools
+    from winremote import __main__
 
-    tool = _get_registered_tools()[tool_name]
-    return tool.fn(**kwargs)
+    tools = {
+        "App": __main__.App,
+        "Scrape": __main__.Scrape,
+        "Shell": __main__.Shell,
+    }
+    return tools[tool_name](**kwargs)
 
 
 class TestShell:
@@ -35,18 +39,25 @@ class TestShell:
 
 
 class TestScrape:
-    @patch("urllib.request.urlopen")
-    def test_scrape_success(self, mock_urlopen):
+    @patch("urllib.request.build_opener")
+    def test_scrape_success(self, mock_build_opener, monkeypatch):
+        import socket
+
+        monkeypatch.setattr(
+            socket,
+            "getaddrinfo",
+            lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+        )
         mock_resp = MagicMock()
         mock_resp.read.return_value = b"<html><body><h1>Hello</h1></body></html>"
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_urlopen.return_value = mock_resp
+        mock_build_opener.return_value.open.return_value = mock_resp
         result = _call_tool("Scrape", url="https://example.com")
         assert "Hello" in result or "task:" in result
 
     def test_scrape_error(self):
-        with patch("urllib.request.urlopen", side_effect=Exception("network error")):
+        with patch("urllib.request.build_opener", side_effect=Exception("network error")):
             result = _call_tool("Scrape", url="https://bad.url")
             assert "error" in result.lower()
 

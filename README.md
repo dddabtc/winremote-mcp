@@ -78,15 +78,20 @@ pip install winremote-mcp
 
 #### Step 2 — Start the server
 
-**Quick start (no auth, trusted LAN only):**
+**Local-only quick start (default, safest):**
 ```cmd
-winremote-mcp --host 0.0.0.0 --port 8090
+winremote-mcp
 ```
 
-**With API key (recommended for remote access):**
+**Remote access requires authentication:**
+
+Starting with v0.4.20, `winremote-mcp` refuses to bind HTTP transport to a non-loopback address without authentication. Use an API key for LAN or remote access:
+
 ```cmd
 winremote-mcp --host 0.0.0.0 --port 8090 --auth-key YOUR_SECRET_KEY
 ```
+
+For lab-only legacy behavior, you can explicitly acknowledge the risk with `--allow-insecure-remote`; do not use this on shared, routed, or internet-exposed networks.
 
 **Auto-start on boot:**
 ```cmd
@@ -174,7 +179,7 @@ winremote-mcp --host 0.0.0.0 --port 8090 ^
 
 ### OAuth 2.0 (for Claude Desktop and other MCP clients)
 
-Some MCP clients (like Claude Desktop) use OAuth instead of API keys. Enable it:
+Some MCP clients (like Claude Desktop) use OAuth instead of API keys. OAuth is a pre-provisioned confidential-client flow: configure both client ID and client secret on the server, then copy the same values into the client. Dynamic client registration is disabled, and redirect URIs must be loopback `http(s)` URIs.
 
 ```cmd
 winremote-mcp --host 0.0.0.0 --port 8090 ^
@@ -209,6 +214,9 @@ Place in your working directory or `~/.config/winremote/winremote.toml`:
 host         = "0.0.0.0"
 port         = 8090
 auth_key     = "your-secret-key"
+# Optional break-glass flag for legacy trusted-LAN deployments only.
+# Remote HTTP without auth is refused unless this is true.
+allow_insecure_remote = false
 ssl_certfile = "C:/certs/cert.pem"   # optional — enables HTTPS
 ssl_keyfile  = "C:/certs/key.pem"    # optional — enables HTTPS
 
@@ -572,9 +580,9 @@ Tools are organized into three risk tiers. By default, only Tier 1-2 tools are e
 
 | Tier | Risk | Default | Examples |
 |------|------|---------|----------|
-| **Tier 1** | Read-only | ✅ Enabled | Snapshot, GetSystemInfo, PlaySound |
-| **Tier 2** | Interactive | ✅ Enabled | Click, Type, Shortcut, App |
-| **Tier 3** | Destructive | ❌ Disabled | Shell, FileWrite, KillProcess, RegWrite |
+| **Tier 1** | Read-only | ✅ Enabled | Snapshot, GetSystemInfo, FileList |
+| **Tier 2** | Interactive | ✅ Enabled | Click, Type, Shortcut, Scrape |
+| **Tier 3** | Destructive / server-side effects | ❌ Disabled | Shell, App, PlaySound, FileWrite |
 
 ```bash
 # Enable all tiers (use with caution)

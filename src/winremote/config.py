@@ -15,6 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10
 class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8090
+    allow_insecure_remote: bool = False
     auth_key: str | None = None
     ssl_certfile: str | None = None
     ssl_keyfile: str | None = None
@@ -67,6 +68,12 @@ def _list_of_strings(raw: object, key: str) -> list[str]:
     return raw
 
 
+def _strict_bool(raw: object, key: str) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    raise ValueError(f"{key} must be a TOML boolean, not {type(raw).__name__}")
+
+
 def load_config(path: Path | None) -> WinRemoteConfig:
     """Load and validate TOML config file. Returns defaults when path is None."""
     cfg = WinRemoteConfig()
@@ -86,6 +93,8 @@ def load_config(path: Path | None) -> WinRemoteConfig:
         cfg.server.host = str(server["host"])
     if "port" in server:
         cfg.server.port = int(server["port"])
+    if "allow_insecure_remote" in server:
+        cfg.server.allow_insecure_remote = _strict_bool(server["allow_insecure_remote"], "server.allow_insecure_remote")
     if "auth_key" in server:
         cfg.server.auth_key = str(server["auth_key"])
     if "ssl_certfile" in server:
@@ -96,9 +105,9 @@ def load_config(path: Path | None) -> WinRemoteConfig:
     if "ip_allowlist" in security:
         cfg.security.ip_allowlist = _list_of_strings(security["ip_allowlist"], "security.ip_allowlist")
     if "enable_tier3" in security:
-        cfg.security.enable_tier3 = bool(security["enable_tier3"])
+        cfg.security.enable_tier3 = _strict_bool(security["enable_tier3"], "security.enable_tier3")
     if "disable_tier2" in security:
-        cfg.security.disable_tier2 = bool(security["disable_tier2"])
+        cfg.security.disable_tier2 = _strict_bool(security["disable_tier2"], "security.disable_tier2")
     if "oauth_client_id" in security:
         cfg.security.oauth_client_id = str(security["oauth_client_id"]) or None
     if "oauth_client_secret" in security:

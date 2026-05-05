@@ -35,7 +35,7 @@ from starlette.responses import JSONResponse, Response
 
 from winremote import __version__, desktop, network, ocr, process_mgr, recording, registry, services
 from winremote.config import discover_config_path, load_config
-from winremote.security import IPAllowlistMiddleware, parse_ip_allowlist
+from winremote.security import IPAllowlistMiddleware, is_loopback_bind_host, parse_ip_allowlist, validate_fetch_url
 from winremote.taskmanager import manager as task_manager
 from winremote.tiers import ALL_TOOLS, get_tier_names, parse_tool_csv, resolve_enabled_tools
 
@@ -713,6 +713,42 @@ def Notification(title: str = "winremote-mcp", message: str = "") -> str:
         return f"Notification error: {e}"
 
 
+class _NoRedirectHandler(__import__("urllib.request").request.HTTPRedirectHandler):
+    """urllib handler that rejects automatic redirects after surfacing target URL."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise __import__("urllib.error").error.HTTPError(newurl, code, "Redirects are not allowed", headers, fp)
+
+
+def _open_validated_fetch_url(url: str, *, headers: dict[str, str] | None = None, timeout: int = 15):
+    """Open a validated URL without following redirects.
+
+    urllib follows redirects by default. For SSRF-sensitive server-side fetches,
+    redirects must be blocked because a public URL could redirect to loopback or
+    private infrastructure after the initial validation.
+    """
+    import urllib.error
+    import urllib.request
+
+    allowed, reason = validate_fetch_url(url)
+    if not allowed:
+        raise ValueError(reason)
+    req = urllib.request.Request(url, headers=headers or {})
+    opener = urllib.request.build_opener(_NoRedirectHandler)
+    try:
+        return opener.open(req, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        if 300 <= exc.code < 400:
+            location = exc.headers.get("Location", "") if exc.headers else ""
+            if location:
+                redirected = urllib.request.urljoin(url, location)
+                redirect_allowed, redirect_reason = validate_fetch_url(redirected)
+                if not redirect_allowed:
+                    raise ValueError(f"redirect blocked: {redirect_reason}") from exc
+            raise ValueError("redirects are not allowed") from exc
+        raise
+
+
 @mcp.tool(
     annotations=ToolAnnotations(
         title="PlaySound",
@@ -730,7 +766,6 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
         url: URL to an audio file (will be downloaded to a temp file first).
     """
     import tempfile
-    import urllib.request
 
     tmp_path = None
     try:
@@ -738,15 +773,27 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
             return "Error: provide either 'path' (local file) or 'url' (remote file)"
 
         if url and not path:
+            allowed, reason = validate_fetch_url(url)
+            if not allowed:
+                return f"PlaySound error: blocked URL: {reason}"
             suffix = ".wav"
             if ".mp3" in url:
                 suffix = ".mp3"
             elif ".ogg" in url:
                 suffix = ".ogg"
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-            urllib.request.urlretrieve(url, tmp.name)
-            path = tmp.name
-            tmp_path = tmp.name
+            fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+            os.close(fd)
+            with _open_validated_fetch_url(url, timeout=15) as resp, open(tmp_path, "wb") as out:
+                remaining = 10 * 1024 * 1024
+                while True:
+                    chunk = resp.read(min(65536, remaining + 1))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    if remaining < 0:
+                        return "PlaySound error: remote file exceeds 10 MB limit"
+                    out.write(chunk)
+            path = tmp_path
 
         ext = os.path.splitext(path)[1].lower()
         # Use single quotes to prevent PowerShell variable expansion / injection
@@ -827,13 +874,13 @@ def Scrape(url: str) -> str:
         url: URL to fetch.
     """
     try:
-        import urllib.request
-
         from markdownify import markdownify
 
-        req = urllib.request.Request(url, headers={"User-Agent": "winremote-mcp/0.3"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
+        with _open_validated_fetch_url(url, headers={"User-Agent": "winremote-mcp/0.4"}, timeout=15) as resp:
+            html = resp.read(1024 * 1024 + 1)
+            if len(html) > 1024 * 1024:
+                return "Scrape error: response exceeds 1 MB limit"
+            html = html.decode("utf-8", errors="replace")
         md = markdownify(html, heading_style="ATX", strip=["script", "style"])
         # Truncate
         if len(md) > 50000:
@@ -1662,6 +1709,12 @@ def _apply_tool_filter(enabled_tools: set[str]) -> None:
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
+@click.option(
+    "--allow-insecure-remote",
+    is_flag=True,
+    default=False,
+    help="Allow non-loopback HTTP bind without auth (dangerous; not recommended)",
+)
 @click.option("--config", default=None, help="Path to winremote.toml config file")
 @click.option(
     "--enable-all",
@@ -1686,6 +1739,7 @@ def cli(
     port: int,
     reload: bool,
     auth_key: str | None,
+    allow_insecure_remote: bool,
     config: str | None,
     enable_all: bool,
     enable_tier3: bool,
@@ -1708,6 +1762,15 @@ def cli(
     host = _choose_value(ctx, "host", host, cfg.server.host, "127.0.0.1")
     port = int(_choose_value(ctx, "port", port, cfg.server.port, 8090))
     auth_key = _choose_value(ctx, "auth_key", auth_key, cfg.server.auth_key, None)
+    allow_insecure_remote = bool(
+        _choose_value(
+            ctx,
+            "allow_insecure_remote",
+            allow_insecure_remote,
+            cfg.server.allow_insecure_remote,
+            False,
+        )
+    )
     ssl_certfile = _choose_value(ctx, "ssl_certfile", ssl_certfile, cfg.server.ssl_certfile, None)
     ssl_keyfile = _choose_value(ctx, "ssl_keyfile", ssl_keyfile, cfg.server.ssl_keyfile, None)
     oauth_client_id = _choose_value(ctx, "oauth_client_id", oauth_client_id, cfg.security.oauth_client_id, None)
@@ -1729,6 +1792,21 @@ def cli(
     selected_tools = cli_tools if _param_explicit(ctx, "tools") else cfg.tools.enable
     excluded_tools = cli_excluded if _param_explicit(ctx, "exclude_tools") else cfg.tools.exclude
     allowlist_entries = cli_allowlist if _param_explicit(ctx, "ip_allowlist") else cfg.security.ip_allowlist
+
+    configured_oauth = bool(oauth_client_id and oauth_client_secret)
+    if (
+        transport != "stdio"
+        and not is_loopback_bind_host(host)
+        and not (auth_key or configured_oauth)
+        and not allow_insecure_remote
+    ):
+        raise click.ClickException(
+            "Refusing to bind HTTP transport to a non-loopback address without authentication. "
+            "Use --auth-key, bind to 127.0.0.1, or pass --allow-insecure-remote to acknowledge the risk."
+        )
+
+    if (oauth_client_id or oauth_client_secret) and not (oauth_client_id and oauth_client_secret):
+        raise click.ClickException("OAuth requires both --oauth-client-id and --oauth-client-secret.")
 
     enabled_tools = resolve_enabled_tools(
         enable_tier3=enable_tier3,
@@ -1791,7 +1869,7 @@ def cli(
                 return True
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
-                auth_line = "[auth ON]" if auth_key else "[no auth]"
+                auth_line = "[auth ON]" if (auth_key or use_oauth) else "[no auth]"
                 ssl_line = "[https ON]" if (ssl_certfile and ssl_keyfile) else ""
                 oauth_line = "[oauth ON]" if use_oauth else ""
                 bind_line = f"[{host}:{port}]"
@@ -1811,7 +1889,7 @@ def cli(
                     f"{pad}|  {tiers_line:<16s}{tools_line:<16s}|",
                     f"{pad}+----------------------------------+",
                 ]
-                if host == "0.0.0.0" and not auth_key:
+                if host == "0.0.0.0" and not (auth_key or use_oauth):
                     lines.append(f"{pad}  WARNING: open to network without auth!")
                     lines.append(f"{pad}  Use --auth-key for security.")
                 if enable_all:

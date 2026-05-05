@@ -38,6 +38,35 @@ exclude = ["Type"]
     assert cfg.tools.exclude == ["Type"]
 
 
+def test_config_loader_rejects_string_security_booleans(tmp_path: Path):
+    cfg_file = tmp_path / "winremote.toml"
+    cfg_file.write_text(
+        """
+[security]
+enable_tier3 = "false"
+disable_tier2 = "false"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="security.enable_tier3"):
+        load_config(cfg_file)
+
+
+def test_config_loader_rejects_string_remote_break_glass_boolean(tmp_path: Path):
+    cfg_file = tmp_path / "winremote.toml"
+    cfg_file.write_text(
+        """
+[server]
+allow_insecure_remote = "false"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="server.allow_insecure_remote"):
+        load_config(cfg_file)
+
+
 def test_discover_config_path_prefers_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     cfg = tmp_path / "winremote.toml"
     cfg.write_text("", encoding="utf-8")

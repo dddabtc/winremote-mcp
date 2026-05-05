@@ -11,6 +11,7 @@ Supports:
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import secrets
 import time
 import urllib.parse
@@ -84,6 +85,19 @@ def _verify_pkce(code_verifier: str, code_challenge: str, method: str) -> bool:
     return False
 
 
+def _is_loopback_redirect_uri(redirect_uri: str) -> bool:
+    parsed = urllib.parse.urlparse(redirect_uri)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.fragment:
+        return False
+    host = parsed.hostname.lower()
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 TOKEN_LIFETIME = 3600  # 1 hour
 CODE_LIFETIME = 300  # 5 minutes
 
@@ -101,65 +115,41 @@ def build_oauth_routes(
 ):
     """Return a dict of {path: handler} for OAuth endpoints."""
 
+    if configured_client_id:
+        store.clients[configured_client_id] = RegisteredClient(
+            client_id=configured_client_id,
+            client_secret=configured_client_secret,
+        )
+
     # ------------------------------------------------------------------
     # /.well-known/oauth-authorization-server  (RFC 8414)
     # ------------------------------------------------------------------
     async def metadata(request: Request):
-        return JSONResponse(
-            {
-                "issuer": issuer,
-                "authorization_endpoint": f"{issuer}/oauth/authorize",
-                "token_endpoint": f"{issuer}/oauth/token",
-                "registration_endpoint": f"{issuer}/oauth/register",
-                "response_types_supported": ["code"],
-                "grant_types_supported": ["authorization_code"],
-                "code_challenge_methods_supported": ["S256", "plain"],
-                "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
-            }
-        )
+        payload = {
+            "issuer": issuer,
+            "authorization_endpoint": f"{issuer}/oauth/authorize",
+            "token_endpoint": f"{issuer}/oauth/token",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code"],
+            "code_challenge_methods_supported": ["S256"],
+            "token_endpoint_auth_methods_supported": ["client_secret_post"],
+        }
+        return JSONResponse(payload)
 
     # ------------------------------------------------------------------
     # POST /oauth/register  (RFC 7591 dynamic client registration)
     # ------------------------------------------------------------------
     async def register(request: Request):
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse({"error": "invalid_request"}, status_code=400)
-
-        redirect_uris = body.get("redirect_uris", [])
-        if not redirect_uris or not isinstance(redirect_uris, list):
-            return JSONResponse(
-                {"error": "invalid_request", "error_description": "redirect_uris required"},
-                status_code=400,
-            )
-
-        client_name = body.get("client_name", "")
-
-        # If a specific client_id is configured, only allow that one
-        if configured_client_id:
-            client_id = configured_client_id
-            client_secret = configured_client_secret
-        else:
-            client_id = f"client_{secrets.token_hex(16)}"
-            client_secret = secrets.token_hex(32)
-
-        client = RegisteredClient(
-            client_id=client_id,
-            client_secret=client_secret,
-            redirect_uris=redirect_uris,
-            client_name=client_name,
+        return JSONResponse(
+            {
+                "error": "registration_disabled",
+                "error_description": (
+                    "Dynamic OAuth client registration is disabled. Configure WINREMOTE_OAUTH_CLIENT_ID "
+                    "and WINREMOTE_OAUTH_CLIENT_SECRET on the server and provision the secret out-of-band."
+                ),
+            },
+            status_code=403,
         )
-        store.clients[client_id] = client
-
-        resp: dict = {
-            "client_id": client_id,
-            "redirect_uris": redirect_uris,
-            "client_name": client_name,
-        }
-        if client_secret:
-            resp["client_secret"] = client_secret
-        return JSONResponse(resp, status_code=201)
 
     # ------------------------------------------------------------------
     # GET /oauth/authorize  (Authorization endpoint)
@@ -185,21 +175,35 @@ def build_oauth_routes(
                 status_code=400,
             )
 
-        # Auto-register unknown clients (MCP spec allows this)
-        if client_id not in store.clients:
-            if configured_client_id and client_id != configured_client_id:
-                return JSONResponse({"error": "invalid_client"}, status_code=400)
-            store.clients[client_id] = RegisteredClient(
-                client_id=client_id,
-                redirect_uris=[redirect_uri],
+        if code_challenge_method != "S256":
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": "code_challenge_method must be S256"},
+                status_code=400,
             )
+        if not _is_loopback_redirect_uri(redirect_uri):
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": "redirect_uri must be loopback http(s) URI"},
+                status_code=400,
+            )
+
+        if not configured_client_id or not configured_client_secret:
+            return JSONResponse(
+                {
+                    "error": "server_error",
+                    "error_description": "OAuth requires a configured client ID and secret",
+                },
+                status_code=500,
+            )
+        if client_id != configured_client_id:
+            return JSONResponse({"error": "invalid_client"}, status_code=400)
 
         client = store.clients[client_id]
         if redirect_uri not in client.redirect_uris:
             client.redirect_uris.append(redirect_uri)
 
-        # For MCP server use-case we auto-approve (no interactive login).
-        # Generate authorization code immediately.
+        # This MCP compatibility flow has no browser login page. It is only safe
+        # for pre-provisioned confidential clients because token exchange below
+        # requires the configured client secret.
         code = secrets.token_urlsafe(32)
         store.codes[code] = AuthorizationCode(
             code=code,
@@ -270,10 +274,11 @@ def build_oauth_routes(
 
         # Validate client_secret if the client has one configured
         client = store.clients.get(client_id)
-        if client and client.client_secret:
-            provided_secret = body.get("client_secret", "")
-            if not provided_secret or not secrets.compare_digest(provided_secret, client.client_secret):
-                return JSONResponse({"error": "invalid_client"}, status_code=401)
+        if not client or not client.client_secret:
+            return JSONResponse({"error": "invalid_client"}, status_code=401)
+        provided_secret = body.get("client_secret", "")
+        if not provided_secret or not secrets.compare_digest(provided_secret, client.client_secret):
+            return JSONResponse({"error": "invalid_client"}, status_code=401)
 
         # Issue access token
         access_token = secrets.token_urlsafe(48)

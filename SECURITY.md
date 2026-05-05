@@ -92,9 +92,9 @@ Desktop interaction tools. Can click, type, and control windows but cannot execu
 | `Shortcut` | Keyboard shortcuts | Could trigger system actions |
 | `FocusWindow` | Bring window to front | Window control |
 | `MinimizeAll` | Show desktop | Window control |
-| `App` | Launch/resize apps | Starts programs |
-| `Scrape` | Fetch URL content | Network access (read-only) |
+| `Scrape` | Fetch public HTTP(S) URL content | Network access; private/link-local/loopback targets blocked |
 | `CancelTask` | Cancel running task | Internal management |
+| `ReconnectSession` | Reconnect desktop session | Session control |
 
 ### Tier 3 — Destructive (High Risk) ⚠️ Default: Disabled
 
@@ -103,6 +103,8 @@ Tools that can modify files, execute code, or alter system state. Enable only wh
 | Tool | Description | Risk |
 |------|-------------|------|
 | `Shell` | Execute PowerShell | **Arbitrary code execution** |
+| `App` | Launch/resize apps | Starts programs |
+| `PlaySound` | Play local or remote audio | Server-side fetch; private/link-local/loopback targets blocked |
 | `FileRead` | Read any file | Sensitive data exposure |
 | `FileWrite` | Write any file | Data modification/loss |
 | `FileDownload` | Export files (base64) | Data exfiltration |
@@ -166,7 +168,10 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | Flag | Access | Use Case |
 |------|--------|----------|
 | (default) | `127.0.0.1` | Local only, safest |
-| `--host 0.0.0.0` | All interfaces | Remote access |
+| `--host 0.0.0.0 --auth-key ...` | All interfaces with bearer auth | Remote access |
+| `--host 0.0.0.0 --allow-insecure-remote` | All interfaces without auth | Legacy trusted-lab only; dangerous |
+
+Starting with v0.4.20, non-loopback HTTP binds are refused unless `--auth-key` is set or `--allow-insecure-remote` is explicitly passed. Do not expose unauthenticated GUI automation on routed, shared, or internet-facing networks.
 
 ### Firewall Rules (Windows)
 
@@ -210,8 +215,11 @@ You can store security settings in config, with precedence:
 **CLI flags > config file > defaults**
 
 ```toml
-[security]
+[server]
 auth_key = "change-me"
+allow_insecure_remote = false
+
+[security]
 ip_allowlist = ["127.0.0.1/32", "192.168.1.0/24"]
 enable_tier3 = false
 disable_tier2 = false

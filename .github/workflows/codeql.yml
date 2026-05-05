@@ -8,15 +8,20 @@ on:
   schedule:
     - cron: '23 4 * * 1'
 
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (Python)
     runs-on: ubuntu-latest
     permissions:
-      actions: read
-      contents: read
-      security-events: write
-
+      actions: read # Required by CodeQL to read workflow metadata.
+      contents: read # Required to check out repository contents.
+      security-events: write # Required to upload CodeQL SARIF results.
     strategy:
       fail-fast: false
       matrix:
@@ -24,15 +29,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@53e96ec3b35fce51c141c0d6f0e31028a448722d # v3
         with:
           languages: ${{ matrix.language }}
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@53e96ec3b35fce51c141c0d6f0e31028a448722d # v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@53e96ec3b35fce51c141c0d6f0e31028a448722d # v3

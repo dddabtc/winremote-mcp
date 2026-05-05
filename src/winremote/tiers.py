@@ -24,7 +24,6 @@ TOOL_TIERS = {
         "Wait",
         "GetTaskStatus",
         "GetRunningTasks",
-        "PlaySound",
     },
     "tier2": {
         "Click",
@@ -34,13 +33,14 @@ TOOL_TIERS = {
         "Shortcut",
         "FocusWindow",
         "MinimizeAll",
-        "App",
         "Scrape",
         "CancelTask",
         "ReconnectSession",
     },
     "tier3": {
         "Shell",
+        "App",
+        "PlaySound",
         "FileRead",
         "FileWrite",
         "FileDownload",

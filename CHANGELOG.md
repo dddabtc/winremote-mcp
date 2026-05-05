@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.20] - 2026-05-04
+
+### Security
+
+- Refuse non-loopback HTTP binds without `--auth-key` unless `--allow-insecure-remote` is explicitly set.
+- Disable dynamic OAuth client registration; OAuth now requires pre-provisioned confidential clients with a configured client ID and secret.
+- Require OAuth PKCE `S256` and loopback redirect URIs.
+- Harden `Scrape` and `PlaySound` URL fetching against SSRF by blocking private, loopback, link-local, multicast, reserved, and unspecified targets and adding response size limits.
+- Move `App` and `PlaySound` to Tier 3 because they can start programs or fetch server-side resources.
+
+### CI
+
+- Raise minimum dependency versions for FastMCP, Pillow, Authlib, cryptography, python-multipart, pytest, and Pygments to versions without currently known advisories in CI.
+- Add CI security scans for Bandit, pip-audit, and zizmor.
+- Restrict GitHub Actions workflow permissions to read-only contents unless PyPI OIDC publishing requires `id-token: write`.
+
 ## [0.4.19] - 2026-05-01
 
 ### Docs

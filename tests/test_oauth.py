@@ -58,8 +58,8 @@ class TestOAuthMetadata:
         assert data["issuer"] == "http://localhost:8090"
         assert "authorization_endpoint" in data
         assert "token_endpoint" in data
-        assert "registration_endpoint" in data
-        assert "S256" in data["code_challenge_methods_supported"]
+        assert "registration_endpoint" not in data
+        assert data["code_challenge_methods_supported"] == ["S256"]
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ class TestOAuthMetadata:
 
 
 class TestOAuthRegister:
-    def test_register_client(self):
+    def test_register_client_disabled(self):
         store = OAuthStore()
         app = _oauth_app(store)
         client = TestClient(app)
@@ -79,20 +79,10 @@ class TestOAuthRegister:
                 "client_name": "test-client",
             },
         )
-        assert resp.status_code == 201
-        data = resp.json()
-        assert "client_id" in data
-        assert "client_secret" in data
-        assert data["client_name"] == "test-client"
+        assert resp.status_code == 403
+        assert resp.json()["error"] == "registration_disabled"
 
-    def test_register_missing_redirect_uris(self):
-        store = OAuthStore()
-        app = _oauth_app(store)
-        client = TestClient(app)
-        resp = client.post("/oauth/register", json={})
-        assert resp.status_code == 400
-
-    def test_register_with_configured_client_id(self):
+    def test_register_with_configured_client_id_does_not_leak_secret(self):
         store = OAuthStore()
         app = _oauth_app(store, configured_client_id="my-id", configured_client_secret="my-secret")
         client = TestClient(app)
@@ -102,10 +92,8 @@ class TestOAuthRegister:
                 "redirect_uris": ["http://localhost/callback"],
             },
         )
-        assert resp.status_code == 201
-        data = resp.json()
-        assert data["client_id"] == "my-id"
-        assert data["client_secret"] == "my-secret"
+        assert resp.status_code == 403
+        assert "my-secret" not in resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -114,29 +102,16 @@ class TestOAuthRegister:
 
 
 class TestOAuthFlow:
-    def test_full_auth_code_flow(self):
+    def test_full_auth_code_flow_for_configured_confidential_client(self):
         store = OAuthStore()
-        app = _oauth_app(store)
+        app = _oauth_app(store, configured_client_id="trusted", configured_client_secret="my-secret")
         client = TestClient(app, follow_redirects=False)
 
-        # 1) Register
-        reg = client.post(
-            "/oauth/register",
-            json={
-                "redirect_uris": ["http://localhost/callback"],
-            },
-        )
-        assert reg.status_code == 201
-        reg_data = reg.json()
-        client_id = reg_data["client_id"]
-        client_secret = reg_data.get("client_secret", "")
-
-        # 2) Authorize with PKCE
         verifier, challenge = _make_pkce()
         auth_resp = client.get(
             "/oauth/authorize",
             params={
-                "client_id": client_id,
+                "client_id": "trusted",
                 "redirect_uri": "http://localhost/callback",
                 "response_type": "code",
                 "code_challenge": challenge,
@@ -149,39 +124,36 @@ class TestOAuthFlow:
         assert "code=" in location
         assert "state=xyz" in location
 
-        # Extract code from redirect
         from urllib.parse import parse_qs, urlparse
 
         parsed = urlparse(location)
         code = parse_qs(parsed.query)["code"][0]
 
-        # 3) Token exchange (include client_secret if the client has one)
-        token_data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "code_verifier": verifier,
-            "client_id": client_id,
-            "redirect_uri": "http://localhost/callback",
-        }
-        if client_secret:
-            token_data["client_secret"] = client_secret
-        token_resp = client.post("/oauth/token", data=token_data)
+        token_resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "code_verifier": verifier,
+                "client_id": "trusted",
+                "client_secret": "my-secret",
+                "redirect_uri": "http://localhost/callback",
+            },
+        )
         assert token_resp.status_code == 200
         token_data = token_resp.json()
         assert "access_token" in token_data
         assert token_data["token_type"] == "Bearer"
-
-        # 4) Validate token
         assert validate_oauth_token(store, token_data["access_token"]) is True
 
     def test_authorize_requires_pkce(self):
         store = OAuthStore()
-        app = _oauth_app(store)
+        app = _oauth_app(store, configured_client_id="trusted", configured_client_secret="secret")
         client = TestClient(app)
         resp = client.get(
             "/oauth/authorize",
             params={
-                "client_id": "test",
+                "client_id": "trusted",
                 "redirect_uri": "http://localhost/callback",
                 "response_type": "code",
             },
@@ -190,12 +162,12 @@ class TestOAuthFlow:
 
     def test_authorize_rejects_wrong_response_type(self):
         store = OAuthStore()
-        app = _oauth_app(store)
+        app = _oauth_app(store, configured_client_id="trusted", configured_client_secret="secret")
         client = TestClient(app)
         resp = client.get(
             "/oauth/authorize",
             params={
-                "client_id": "test",
+                "client_id": "trusted",
                 "redirect_uri": "http://localhost/callback",
                 "response_type": "token",
                 "code_challenge": "abc",
@@ -203,19 +175,34 @@ class TestOAuthFlow:
         )
         assert resp.status_code == 400
 
+    def test_authorize_rejects_unknown_client(self):
+        store = OAuthStore()
+        app = _oauth_app(store, configured_client_id="trusted", configured_client_secret="secret")
+        client = TestClient(app)
+        verifier, challenge = _make_pkce()
+        resp = client.get(
+            "/oauth/authorize",
+            params={
+                "client_id": "unknown",
+                "redirect_uri": "http://localhost/callback",
+                "response_type": "code",
+                "code_challenge": challenge,
+                "code_challenge_method": "S256",
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "invalid_client"
+
     def test_token_rejects_wrong_verifier(self):
         store = OAuthStore()
-        app = _oauth_app(store)
+        app = _oauth_app(store, configured_client_id="trusted", configured_client_secret="secret")
         client = TestClient(app, follow_redirects=False)
 
-        # Register + authorize
-        reg = client.post("/oauth/register", json={"redirect_uris": ["http://localhost/cb"]})
-        client_id = reg.json()["client_id"]
         verifier, challenge = _make_pkce()
         auth_resp = client.get(
             "/oauth/authorize",
             params={
-                "client_id": client_id,
+                "client_id": "trusted",
                 "redirect_uri": "http://localhost/cb",
                 "response_type": "code",
                 "code_challenge": challenge,
@@ -226,14 +213,14 @@ class TestOAuthFlow:
 
         code = parse_qs(urlparse(auth_resp.headers["location"]).query)["code"][0]
 
-        # Use wrong verifier
         token_resp = client.post(
             "/oauth/token",
             data={
                 "grant_type": "authorization_code",
                 "code": code,
                 "code_verifier": "wrong-verifier",
-                "client_id": client_id,
+                "client_id": "trusted",
+                "client_secret": "secret",
                 "redirect_uri": "http://localhost/cb",
             },
         )
@@ -242,18 +229,14 @@ class TestOAuthFlow:
 
     def test_code_single_use(self):
         store = OAuthStore()
-        app = _oauth_app(store)
+        app = _oauth_app(store, configured_client_id="trusted", configured_client_secret="secret")
         client = TestClient(app, follow_redirects=False)
 
-        reg = client.post("/oauth/register", json={"redirect_uris": ["http://localhost/cb"]})
-        reg_data = reg.json()
-        client_id = reg_data["client_id"]
-        client_secret = reg_data.get("client_secret", "")
         verifier, challenge = _make_pkce()
         auth_resp = client.get(
             "/oauth/authorize",
             params={
-                "client_id": client_id,
+                "client_id": "trusted",
                 "redirect_uri": "http://localhost/cb",
                 "response_type": "code",
                 "code_challenge": challenge,
@@ -268,17 +251,14 @@ class TestOAuthFlow:
             "grant_type": "authorization_code",
             "code": code,
             "code_verifier": verifier,
-            "client_id": client_id,
+            "client_id": "trusted",
+            "client_secret": "secret",
             "redirect_uri": "http://localhost/cb",
         }
-        if client_secret:
-            token_data["client_secret"] = client_secret
 
-        # First exchange succeeds
         resp1 = client.post("/oauth/token", data=token_data)
         assert resp1.status_code == 200
 
-        # Second exchange fails (code consumed)
         resp2 = client.post("/oauth/token", data=token_data)
         assert resp2.status_code == 400
 
