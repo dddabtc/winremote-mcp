@@ -75,10 +75,14 @@ jobs:
       - name: Install package and security scanners
         run: |
           pip install -e ".[test]"
-          pip install bandit pip-audit zizmor
+          pip install bandit pip-audit zizmor uv
       - name: Bandit static security scan
         run: bandit -q -lll -r src -x tests
       - name: Dependency vulnerability scan
-        run: pip-audit --skip-editable
+        run: |
+          uv export --extra test --format requirements-txt \
+            --no-hashes --no-emit-project \
+            --output-file /tmp/winremote-requirements.txt
+          pip-audit -r /tmp/winremote-requirements.txt
       - name: GitHub Actions security scan
         run: zizmor --persona=auditor .github/workflows
