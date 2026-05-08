@@ -56,7 +56,7 @@ jobs:
         run: |
           pip install pytest-cov
           python -m pytest tests/ --ignore=tests/test_desktop_tools.py --cov=src --cov-report=xml --cov-report=term-missing
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: matrix.python-version == '3.12'
         with:
           name: coverage
