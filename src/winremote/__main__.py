@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import base64
+import getpass
 import os
 import platform
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
+import re
 
 import click
 from click.core import ParameterSource
@@ -1917,50 +1919,197 @@ def cli(
         mcp.run(**run_kwargs)
 
 
-@cli.command()
-def install():
-    """Create a Windows scheduled task for auto-start."""
-    import getpass
+@cli.command(context_settings={"ignore_unknown_options": True})
+@click.argument("install_args", nargs=-1, type=click.UNPROCESSED)
+def install(install_args):
+    import argparse
     import os
+    import getpass
+    import click
+    import subprocess
 
-    username = getpass.getuser()
+    parser = argparse.ArgumentParser(
+    description="What arguments do you want to run winremote-mcp with on startup?",
+    argument_default=argparse.SUPPRESS,
+    )
+    parser.add_argument("--transport", choices=["stdio", "streamable-http"], help="Transport to use for the server")
+    parser.add_argument("--host", help="Bind address (default: 127.0.0.1; use 0.0.0.0 for remote access)")
+    parser.add_argument("--port", type=int, help="Port to bind the server to")
+    parser.add_argument("--reload", action="store_true", help="Enable hot reload (streamable-http only)")
+    parser.add_argument("--auth-key", help="API key for authentication")
+    parser.add_argument("--config", help="Path to winremote.toml config file")
+    parser.add_argument("--enable-all", action="store_true", help="Enable all tools including high-risk Tier 3 tools (backward-compatible)")
+    parser.add_argument("--enable-tier3", action="store_true", help="Enable tier3 destructive tools")
+    parser.add_argument("--disable-tier2", action="store_true", help="Disable tier2 interactive tools")
+    parser.add_argument("--tools", help="Comma-separated tools to enable (highest precedence)")
+    parser.add_argument("--exclude-tools", help="Comma-separated tools to disable")
+    parser.add_argument("--ip-allowlist", help="Comma-separated IPs/CIDRs allowed to access HTTP transport")
+    parser.add_argument("--ssl-certfile", help="Path to SSL certificate file for HTTPS")
+    parser.add_argument("--ssl-keyfile", help="Path to SSL private key file for HTTPS")
+    parser.add_argument("--oauth-client-id", help="OAuth client ID whitelist")
+    parser.add_argument("--oauth-client-secret", help="OAuth client secret")
+    
+    # Parse only the args passed after the 'install' subcommand.
+    # Use parse_known_args on the `install_args` tuple so options after 'install'
+    # are accepted (e.g. `winremote install --host 0.0.0.0`).
+    args, _ = parser.parse_known_args(list(install_args))
+    provided_args = vars(args)  # only contains arguments explicitly passed by the user
 
-    # Create start_mcp.bat for Chinese Windows compatibility
-    python_exe = subprocess.run(["where", "python"], capture_output=True, text=True).stdout.strip().split("\n")[0]
-    bat_content = f"""@echo off
-rem winremote-mcp startup script with UTF-8 encoding for Chinese Windows
-set PYTHONIOENCODING=utf-8
-"{python_exe}" -m winremote %*
-"""
+    def _format_args_for_command(d: dict) -> str:
+        """Format parsed args dict into a CLI argument string safe for embedding in PowerShell.
 
-    # Write batch file to user's profile directory
-    user_profile = os.environ.get("USERPROFILE", ".")
-    bat_path = os.path.join(user_profile, "start_mcp.bat")
+        - Boolean True becomes a flag `--name`.
+        - Other values are quoted only when necessary (contain whitespace or special chars).
+        """
+        parts: list[str] = []
+        special_re = re.compile(r"[\s'\"`\$;{}()\[\]&<>|\\]")
+        for k, v in d.items():
+            key = f"--{k.replace('_', '-') }"
+            if isinstance(v, bool):
+                if v:
+                    parts.append(key)
+            else:
+                sval = str(v)
+                if special_re.search(sval):
+                    sval_escaped = sval.replace("'", "''")
+                    parts.append(f"{key} '{sval_escaped}'")
+                else:
+                    parts.append(f"{key} {sval}")
+        return " ".join(parts)
 
+    provided_args_str = _format_args_for_command(provided_args)
+
+    # Interactive terminal prompt for virtualenv
     try:
-        with open(bat_path, "w", encoding="utf-8") as f:
-            f.write(bat_content)
-        click.echo(f"[OK] Created startup script: {bat_path}")
+        have_venv = input("Do you have a virtualenv for winremote [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        click.echo("No input received; continuing without a virtualenv.")
+        have_venv = "n"
+
+    venv_path = None
+    if have_venv in ("y", "yes"):
+        while True:
+            try:
+                v = input("Paste the full path to the virtualenv (press Enter to skip): ").strip().strip('"')
+            except (EOFError, KeyboardInterrupt):
+                click.echo("No input received; continuing without a virtualenv.")
+                v = ""
+            if not v:
+                click.echo("Continuing install without a virtualenv.")
+                break
+            v = os.path.expanduser(v)
+            # Basic validation: must be a directory and contain Scripts/python.exe (Windows venv)
+            python_exe_path = os.path.join(v, "Scripts", "python.exe")
+            if os.path.isdir(v) and os.path.exists(python_exe_path):
+                venv_path = v
+                provided_args["venv_path"] = venv_path
+                click.echo(f"Using virtualenv: {venv_path}")
+                break
+            else:
+                click.echo("Invalid virtualenv path or missing Scripts/python.exe. Re-paste the path or press Enter to skip.")
+        else:
+            click.echo("No virtualenv specified; continuing install.")
+
+    winremote_path = os.path.dirname(os.path.abspath(__file__))
+    username = getpass.getuser()
+    # Determine python executable to use when creating startup script
+    try:
+        system_python = subprocess.run(["where", "python"], capture_output=True, text=True).stdout.strip().split("\n")[0]
+    except Exception:
+        system_python = "pythonw"
+
+    if venv_path:
+        pythonw = os.path.join(venv_path, "Scripts", "pythonw.exe")
+    else:
+        pythonw = system_python or "pythonw"
+    
+    # Create a simple PowerShell script that launches winremote via pythonw
+    if venv_path == None:
+        powershell_content = (
+            f"# PowerShell script to start winremote-mcp\n"
+            f"Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @( '-NoProfile', '-ExecutionPolicy Bypass', '-Command \"& {{   & ''{pythonw}'' ''{os.path.join(winremote_path, 'start_winremote.py')}'' {provided_args_str}    }}\"')"
+        )
+    else:
+        powershell_content = (
+            f"# PowerShell script to start winremote-mcp\n"
+            f"Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @( '-NoProfile', '-ExecutionPolicy Bypass', '-Command \"& {{   & ''{venv_path}\\Scripts\\activate'';     & ''{pythonw}'' ''{os.path.join(winremote_path, 'start_winremote.py')}'' {provided_args_str}    }}\"')"
+        )
+    # Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @( '-NoProfile', '-ExecutionPolicy Bypass', '-Command "& {   & ''C:\Services\winremote\venv\Scripts\activate.ps1'';     & ''C:\Services\winremote\venv\Scripts\pythonw.exe'' ''C:\Services\winremote\start_winremote.py'' --host 0.0.0.0 --port 8090 --auth-key ''pretty?key''    }"')
+
+    script_path = os.path.join(os.path.expanduser("~"), "winremote_start.ps1")
+    exe_path = os.path.join(os.path.expanduser("~"), "winremote_start.exe")
+    try:
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(powershell_content)
+        click.echo(f"[OK] Created startup script: {script_path}")
     except Exception as e:
         click.echo(f"[ERROR] Failed to create startup script: {e}")
         return
 
-    # Create scheduled task using the batch file
     try:
-        result = subprocess.run(
-            ["schtasks", "/Create", "/SC", "ONSTART", "/TN", "WinRemoteMCP", "/TR", bat_path, "/RU", username, "/F"],
+        click.echo("Dont worry about the long wait during installation if you dont have ps2exe or powershell 7 installed, the script will still be created successfully. Attempting to compile the PowerShell script to an executable for better compatibility with Windows startup tasks...")
+        subprocess.run(["powershell.exe", "-Command", "winget", "install", "--id", "Microsoft.PowerShell", "--source", "winget", ";", "pwsh", "-NoProfile", "-NonInteractive", "-Command", "Install-Module", "-name", "ps2exe", "-Force","-AcceptLicense", "-Scope", "CurrentUser",], capture_output=True, text=True, shell=True)
+        click.echo("[OK] Ensured powershell 7 and ps2exe module are installed.")
+        res = subprocess.run(
+            ["pwsh", "-Command", f"Invoke-ps2exe -inputFile '{script_path}' -outputFile '{exe_path}' -noConsole"],
             capture_output=True,
             text=True,
+            shell=True,
         )
-        if result.returncode == 0:
-            click.echo("[OK] Scheduled task 'WinRemoteMCP' created for auto-start.")
-            click.echo("The server will start automatically on system boot.")
-            click.echo("Note: Uses start_mcp.bat for Chinese Windows compatibility.")
+        if res.returncode == 0:
+            click.echo(f"[OK] Compiled startup script to executable: {exe_path}")
         else:
-            click.echo(f"[ERROR] Failed to create task:\n{result.stderr or result.stdout}")
+            click.echo(f"[ERROR] Failed to compile script:\n{res.stderr or res.stdout}")
+            return
+    except Exception as e:
+        click.echo(f"[ERROR] Error during script compilation: {e}")
+        return
+
+
+
+    try:
+        # Create an ONSTART task (call schtasks directly; do not attempt to elevate via shell helpers)
+        cmd_start = ["schtasks", "/Create", "/SC", "ONSTART", "/TN", "WinRemoteMCP", "/TR", exe_path, "/RU", username, "/F"]
+        res_start = subprocess.run(cmd_start, capture_output=True, text=True)
+        if res_start.returncode == 0:
+            click.echo("[OK] Scheduled task 'WinRemoteMCP' created for auto-start.")
+        else:
+            out_err = (res_start.stderr or res_start.stdout or "")
+            if "Access is denied" in out_err:
+                # Retry without /RU (may succeed when UAC prevents creating tasks for other accounts)
+                cmd_alt = ["schtasks", "/Create", "/SC", "ONSTART", "/TN", "WinRemoteMCP", "/TR", exe_path, "/F"]
+                res_alt = subprocess.run(cmd_alt, capture_output=True, text=True)
+                if res_alt.returncode == 0:
+                    click.echo("[OK] Scheduled task 'WinRemoteMCP' created for auto-start (without /RU).")
+                else:
+                    click.echo(f"[ERROR] Failed to create ONSTART task (access denied)")
+                    click.echo("Hint: 'Access is denied' usually means this command requires Administrator privileges. Run the install command from an elevated prompt and try again.")
+            else:
+                click.echo(f"[ERROR] Failed to create ONSTART task")
+
+        # Create a periodic task every 10 minutes
+        cmd_periodic = ["schtasks", "/Create", "/SC", "MINUTE", "/MO", "10", "/TN", "WinRemoteMCP-Periodic", "/TR", exe_path, "/RU", username, "/F"]
+        res_periodic = subprocess.run(cmd_periodic, capture_output=True, text=True)
+        if res_periodic.returncode == 0:
+            click.echo("[OK] Scheduled task 'WinRemoteMCP-Periodic' created (every 10 minutes).")
+        else:
+            out_err = (res_periodic.stderr or res_periodic.stdout or "")
+            if "Access is denied" in out_err:
+                cmd_alt = ["schtasks", "/Create", "/SC", "MINUTE", "/MO", "10", "/TN", "WinRemoteMCP-Periodic", "/TR", exe_path, "/F"]
+                res_alt = subprocess.run(cmd_alt, capture_output=True, text=True)
+                if res_alt.returncode == 0:
+                    click.echo("[OK] Scheduled task 'WinRemoteMCP-Periodic' created (every 10 minutes, without /RU).")
+                else:
+                    click.echo(f"[ERROR] Failed to create periodic task (access denied):\n{res_alt.stderr or res_alt.stdout}")
+                    click.echo("Hint: 'Access is denied' usually means this command requires Administrator privileges. Run the install command from an elevated prompt and try again.")
+            else:
+                click.echo(f"[ERROR] Failed to create periodic task:\n{out_err}")
+
+        click.echo("The server will start automatically on system boot and every 10 minutes.")
     except Exception as e:
         click.echo(f"[ERROR] Error: {e}")
-
+    
+   
 
 @cli.command()
 def uninstall():
@@ -1969,7 +2118,7 @@ def uninstall():
 
     try:
         result = subprocess.run(
-            ["schtasks", "/Delete", "/TN", "WinRemoteMCP", "/F"],
+            ["powershell", "-Command", "schtasks /Delete /TN WinRemoteMCP /F", ";", "schtasks /Delete /TN WinRemoteMCP-Periodic /F"],
             capture_output=True,
             text=True,
         )
@@ -1982,11 +2131,15 @@ def uninstall():
 
     # Also remove the batch file
     user_profile = os.environ.get("USERPROFILE", ".")
-    bat_path = os.path.join(user_profile, "start_mcp.bat")
+    ps_path = os.path.join(user_profile, "winremote_start.ps1")
+    exe_path = os.path.join(user_profile, "winremote_start.exe")
     try:
-        if os.path.exists(bat_path):
-            os.remove(bat_path)
-            click.echo(f"[OK] Removed startup script: {bat_path}")
+        if os.path.exists(ps_path):
+            os.remove(ps_path)
+            click.echo(f"[OK] Removed startup script: {ps_path}")
+        if os.path.exists(exe_path):
+            os.remove(exe_path)
+            click.echo(f"[OK] Removed startup script: {exe_path}")
     except Exception as e:
         click.echo(f"[ERROR] Failed to remove startup script: {e}")
 
