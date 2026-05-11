@@ -93,7 +93,7 @@ winremote-mcp --host 0.0.0.0 --port 8090 --auth-key YOUR_SECRET_KEY
 
 For lab-only legacy behavior, you can explicitly acknowledge the risk with `--allow-insecure-remote`; do not use this on shared, routed, or internet-exposed networks.
 
-**Auto-start on boot:**
+**Auto-start on login:**
 ```cmd
 winremote-mcp install
 ```
@@ -486,10 +486,10 @@ winremote-mcp --reload
 }
 ```
 
-### Auto-Start on Boot
+### Auto-Start on Login
 ```bash
-# Create Windows scheduled task
-winremote-mcp install
+# Create Windows scheduled task for the current user's login
+winremote-mcp install --transport streamable-http --host 127.0.0.1 --port 8090
 
 # Remove scheduled task  
 winremote-mcp uninstall
