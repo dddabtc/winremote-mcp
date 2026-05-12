@@ -1917,70 +1917,49 @@ def cli(
         mcp.run(**run_kwargs)
 
 
-@cli.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
-@click.argument("install_args", nargs=-1, type=click.UNPROCESSED)
-def install(install_args):
-    """Create a Windows scheduled task for auto-start.
-
-    Any arguments after ``install`` are persisted and passed to winremote-mcp
-    when the scheduled task starts, for example:
-
-        winremote-mcp install --transport streamable-http --host 0.0.0.0 --port 8090
-    """
+@cli.command()
+def install():
+    """Create a Windows scheduled task for auto-start."""
     import getpass
-    import sys
+    import os
 
     username = getpass.getuser()
-    user_profile = os.environ.get("USERPROFILE") or str(Path.home())
-    script_path = os.path.join(user_profile, "start_mcp.bat")
-    log_path = os.path.join(user_profile, "winremote-mcp.log")
-    python_exe = sys.executable or "python"
 
-    server_cmd = subprocess.list2cmdline([python_exe, "-m", "winremote", *install_args])
-    server_cmd_with_log = f'{server_cmd} >> "{log_path}" 2>&1'
-    background_cmd = subprocess.list2cmdline([server_cmd_with_log])
+    # Create start_mcp.bat for Chinese Windows compatibility
+    python_exe = subprocess.run(["where", "python"], capture_output=True, text=True).stdout.strip().split("\n")[0]
     bat_content = f"""@echo off
 rem winremote-mcp startup script with UTF-8 encoding for Chinese Windows
 set PYTHONIOENCODING=utf-8
-set PYTHONUTF8=1
-cd /d "%USERPROFILE%"
-start "" /B cmd /c {background_cmd}
+"{python_exe}" -m winremote %*
 """
 
+    # Write batch file to user's profile directory
+    user_profile = os.environ.get("USERPROFILE", ".")
+    bat_path = os.path.join(user_profile, "start_mcp.bat")
+
     try:
-        with open(script_path, "w", encoding="utf-8") as f:
+        with open(bat_path, "w", encoding="utf-8") as f:
             f.write(bat_content)
-        click.echo(f"[OK] Created startup script: {script_path}")
+        click.echo(f"[OK] Created startup script: {bat_path}")
     except Exception as e:
         click.echo(f"[ERROR] Failed to create startup script: {e}")
         return
 
-    task_cmd = [
-        "schtasks",
-        "/Create",
-        "/SC",
-        "ONLOGON",
-        "/TN",
-        "WinRemoteMCP",
-        "/TR",
-        script_path,
-        "/RU",
-        username,
-        "/F",
-    ]
-    result = subprocess.run(task_cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        task_cmd = ["schtasks", "/Create", "/SC", "ONLOGON", "/TN", "WinRemoteMCP", "/TR", script_path, "/F"]
-        result = subprocess.run(task_cmd, capture_output=True, text=True)
-
-    if result.returncode == 0:
-        click.echo("[OK] Scheduled task 'WinRemoteMCP' created for login auto-start.")
-        click.echo("The server will start in the background when this Windows user logs in.")
-        if install_args:
-            click.echo(f"Startup arguments: {' '.join(install_args)}")
-        click.echo(f"Logs: {log_path}")
-    else:
-        click.echo(f"[ERROR] Failed to create task:\n{result.stderr or result.stdout}")
+    # Create scheduled task using the batch file
+    try:
+        result = subprocess.run(
+            ["schtasks", "/Create", "/SC", "ONSTART", "/TN", "WinRemoteMCP", "/TR", bat_path, "/RU", username, "/F"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            click.echo("[OK] Scheduled task 'WinRemoteMCP' created for auto-start.")
+            click.echo("The server will start automatically on system boot.")
+            click.echo("Note: Uses start_mcp.bat for Chinese Windows compatibility.")
+        else:
+            click.echo(f"[ERROR] Failed to create task:\n{result.stderr or result.stdout}")
+    except Exception as e:
+        click.echo(f"[ERROR] Error: {e}")
 
 
 @cli.command()

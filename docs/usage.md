@@ -179,8 +179,8 @@ Create/edit `.cursor/mcp.json` in your project:
 ### Windows Scheduled Task
 
 ```bash
-# Install as Windows scheduled task (runs when the current user logs in)
-winremote-mcp install --transport streamable-http --host 127.0.0.1 --port 8090
+# Install as Windows scheduled task (runs on startup)
+winremote-mcp install
 
 # Remove scheduled task
 winremote-mcp uninstall
