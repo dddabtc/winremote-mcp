@@ -32,6 +32,8 @@ dependencies = [
     "cryptography>=46.0.7",
     "python-multipart>=0.0.26",
     "tomli>=2.0.1; python_version < '3.11'",
+    "idna>=3.15",
+    "starlette>=1.0.1",
 ]
 
 [project.scripts]
