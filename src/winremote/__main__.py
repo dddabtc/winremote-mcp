@@ -1708,6 +1708,7 @@ def _apply_tool_filter(enabled_tools: set[str]) -> None:
 @click.option("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1; use 0.0.0.0 for remote access)")
 @click.option("--port", default=8090, type=int)
 @click.option("--reload", is_flag=True, default=False, help="Enable hot reload (streamable-http only)")
+@click.option("--debug", is_flag=True, default=False, help="Enable detailed debug logging")
 @click.option("--auth-key", default=None, envvar="WINREMOTE_AUTH_KEY", help="API key for authentication")
 @click.option(
     "--allow-insecure-remote",
@@ -1738,6 +1739,7 @@ def cli(
     host: str,
     port: int,
     reload: bool,
+    debug: bool,
     auth_key: str | None,
     allow_insecure_remote: bool,
     config: str | None,
@@ -1859,6 +1861,10 @@ def cli(
 
     import logging
 
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("winremote").setLevel(logging.DEBUG)
+
     class BannerFilter(logging.Filter):
         """Inject our banner after uvicorn's 'Application startup complete' log."""
 
@@ -1909,6 +1915,8 @@ def cli(
         uvicorn_args = {}
         if reload:
             uvicorn_args["reload"] = True
+        if debug:
+            uvicorn_args["log_level"] = "debug"
         if ssl_certfile and ssl_keyfile:
             uvicorn_args["ssl_certfile"] = ssl_certfile
             uvicorn_args["ssl_keyfile"] = ssl_keyfile

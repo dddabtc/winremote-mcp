@@ -156,6 +156,18 @@ class TestToolTierHardening:
 
 
 class TestRemoteBindHardening:
+    def test_debug_flag_is_accepted_and_enables_debug_logging(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        run_kwargs = {}
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: run_kwargs.update(kwargs))
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--debug"])
+
+        assert result.exit_code == 0
+        assert run_kwargs["uvicorn_args"]["log_level"] == "debug"
+
     def test_non_loopback_http_requires_auth_or_explicit_override(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["--host", "0.0.0.0", "--port", "8090"])
