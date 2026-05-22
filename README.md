@@ -233,36 +233,27 @@ exclude = ["ScreenRecord"]   # disable specific tools
 
 > **Note:** winremote-mcp is a standard MCP server and works with any MCP-compatible client — Claude Desktop, Cursor, OpenClaw, and others.
 
+## What's New in v0.4.22
+
+### 🐛 Debug flag restored
+
+- Added the documented `--debug` CLI flag so `winremote-mcp --debug` is accepted.
+- `--debug` enables DEBUG logging for winremote and passes `log_level=debug` to uvicorn for HTTP transport.
+
+### 🔒 Dependency security updates
+
+- Added minimum constraints for `idna>=3.15` and `starlette>=1.0.1` to avoid known vulnerable versions.
+
+### 📚 README release notes cleanup
+
+- README now keeps only the latest two `What's New` sections.
+- Older release notes remain available in the full [CHANGELOG](CHANGELOG.md).
+
 ## What's New in v0.4.21
 
 ### 📚 README release notes cleanup
 
-- README now keeps only the latest three `What's New` sections.
-- Older release notes now point to the full [CHANGELOG](CHANGELOG.md) to keep the README focused.
-
-## What's New in v0.4.20
-
-### 🔒 Security hardening
-
-- Remote HTTP access now requires authentication by default. Non-loopback binds are refused unless you configure `--auth-key` or OAuth confidential-client auth.
-- `--allow-insecure-remote` is still available, but only as an explicit legacy / lab-only break-glass option.
-- OAuth dynamic client registration is disabled. OAuth now requires a pre-provisioned confidential client with client ID and client secret.
-- OAuth now requires PKCE `S256` and loopback redirect URIs.
-- `Scrape` and `PlaySound` URL fetching now blocks private, loopback, link-local, multicast, reserved, and unspecified targets to reduce SSRF risk.
-- `App` and `PlaySound` moved to Tier 3 because they can start programs or trigger server-side effects.
-
-### 🛡️ CI and supply-chain checks
-
-- Added CI security scans with Bandit, pip-audit, and zizmor.
-- Raised minimum dependency versions for FastMCP, Pillow, Authlib, cryptography, python-multipart, pytest, and Pygments.
-- Tightened GitHub Actions permissions and pinned workflow actions to immutable SHAs.
-
-## What's New in v0.4.19
-
-### 🤖 Hermes Integration
-
-- Added a Hermes setup guide for connecting winremote-mcp as a native MCP server.
-- Added README links to client-specific integration guides in this repository.
+- README keeps recent `What's New` sections focused and points older release notes to the full [CHANGELOG](CHANGELOG.md).
 
 For older release notes, see the full [CHANGELOG](CHANGELOG.md).
 

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.22] - 2026-05-22
+
+### Fixed
+
+- Add the documented `--debug` CLI flag and enable debug logging for winremote/uvicorn when it is set.
+
+### Security
+
+- Add minimum dependency constraints for `idna>=3.15` and `starlette>=1.0.1` to avoid known vulnerable versions.
+
+### Docs
+
+- Keep only the latest two `What's New` sections in README and point older release notes to the full changelog.
+
 ## [0.4.21] - 2026-05-05
 
 ### Docs
