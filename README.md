@@ -1,5 +1,7 @@
 # WinRemote MCP — Run MCP Servers Remotely on Windows
 
+[中文说明](README.zh-CN.md) | [English README](README.md)
+
 [![PyPI version](https://img.shields.io/pypi/v/winremote-mcp)](https://pypi.org/project/winremote-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/winremote-mcp)](https://pypi.org/project/winremote-mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
