@@ -166,7 +166,49 @@ class TestRemoteBindHardening:
         result = runner.invoke(cli, ["--debug"])
 
         assert result.exit_code == 0
-        assert run_kwargs["uvicorn_args"]["log_level"] == "debug"
+        assert run_kwargs["uvicorn_config"]["log_level"] == "debug"
+
+    def test_debug_flag_runs_with_current_fastmcp_signature(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        run_kwargs = {}
+
+        async def fake_run_http_async(
+            show_banner=True,
+            transport="http",
+            host=None,
+            port=None,
+            log_level=None,
+            path=None,
+            uvicorn_config=None,
+            middleware=None,
+            json_response=None,
+            stateless_http=None,
+            stateless=None,
+        ):
+            run_kwargs.update(
+                {
+                    "show_banner": show_banner,
+                    "transport": transport,
+                    "host": host,
+                    "port": port,
+                    "log_level": log_level,
+                    "path": path,
+                    "uvicorn_config": uvicorn_config,
+                    "middleware": middleware,
+                    "json_response": json_response,
+                    "stateless_http": stateless_http,
+                    "stateless": stateless,
+                }
+            )
+
+        monkeypatch.setattr(main_module.mcp, "run_http_async", fake_run_http_async)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--debug"])
+
+        assert result.exit_code == 0
+        assert run_kwargs["uvicorn_config"]["log_level"] == "debug"
 
     def test_non_loopback_http_requires_auth_or_explicit_override(self):
         runner = CliRunner()

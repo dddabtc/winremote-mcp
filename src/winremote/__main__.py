@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import inspect
 import os
 import platform
 import subprocess
@@ -68,6 +69,17 @@ def _patch_fastmcp_streamable_http_get_probe() -> None:
 
 
 _patch_fastmcp_streamable_http_get_probe()
+
+
+def _fastmcp_uvicorn_config_kwarg(server: FastMCP) -> str:
+    """Return the uvicorn config keyword supported by the installed FastMCP."""
+    params = inspect.signature(server.run_http_async).parameters
+    if "uvicorn_config" in params:
+        return "uvicorn_config"
+    if "uvicorn_args" in params:
+        return "uvicorn_args"
+    return "uvicorn_config"
+
 
 if pyautogui is not None:
     pyautogui.FAILSAFE = False
@@ -1907,7 +1919,7 @@ def cli(
         mcp.run(transport="stdio")
     else:
         logging.getLogger("uvicorn.error").addFilter(BannerFilter())
-        run_kwargs = dict(transport="streamable-http", host=host, port=port)
+        run_kwargs: dict[str, object] = dict(transport="streamable-http", host=host, port=port)
         if middleware:
             run_kwargs["middleware"] = middleware
         if platform.system() == "Windows":
@@ -1921,7 +1933,7 @@ def cli(
             uvicorn_args["ssl_certfile"] = ssl_certfile
             uvicorn_args["ssl_keyfile"] = ssl_keyfile
         if uvicorn_args:
-            run_kwargs["uvicorn_args"] = uvicorn_args
+            run_kwargs[_fastmcp_uvicorn_config_kwarg(mcp)] = uvicorn_args
         mcp.run(**run_kwargs)
 
 
