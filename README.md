@@ -233,6 +233,20 @@ exclude = ["ScreenRecord"]   # disable specific tools
 
 > **Note:** winremote-mcp is a standard MCP server and works with any MCP-compatible client — Claude Desktop, Cursor, OpenClaw, and others.
 
+## What's New in v0.4.23
+
+### 🐛 FastMCP debug/uvicorn compatibility
+
+- Fixed `winremote-mcp --debug` with FastMCP 3.2.4+, where `run_http_async` renamed the uvicorn options keyword from `uvicorn_args` to `uvicorn_config`.
+- winremote-mcp now detects the installed FastMCP signature and passes DEBUG uvicorn logging through the supported keyword, while preserving compatibility with older FastMCP releases.
+- Added regression coverage so the debug HTTP startup path stays compatible with both keyword names.
+
+### 中文发布说明
+
+- 修复 FastMCP 3.2.4+ 中 `run_http_async` 参数从 `uvicorn_args` 改为 `uvicorn_config` 后，`winremote-mcp --debug` 启动时报错的问题。
+- 现在会自动检测当前 FastMCP 支持的参数名，并继续把 uvicorn 的 DEBUG 日志配置传递给 HTTP 传输层；旧版 FastMCP 仍保持兼容。
+- 已添加回归测试，覆盖新旧 uvicorn 配置参数的兼容路径。
+
 ## What's New in v0.4.22
 
 ### 🐛 Debug flag restored
