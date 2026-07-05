@@ -240,6 +240,118 @@ class TestRemoteBindHardening:
         assert result.exit_code == 0
 
 
+class TestTier3RemoteHardening:
+    def test_tier3_over_unauth_remote_is_refused_even_with_allow_insecure_remote(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--allow-insecure-remote",
+                "--enable-tier3",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Tier 3" in result.output
+        assert "--auth-key" in result.output
+
+    def test_enable_all_over_unauth_remote_is_refused_even_with_allow_insecure_remote(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--allow-insecure-remote",
+                "--enable-all",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Tier 3" in result.output
+
+    def test_explicit_shell_over_unauth_remote_is_refused_even_with_allow_insecure_remote(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--allow-insecure-remote",
+                "--tools",
+                "Shell",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Tier 3" in result.output
+
+    def test_authed_remote_with_tier3_is_allowed(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--auth-key",
+                "s3cret",
+                "--enable-tier3",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+    def test_oauth_remote_with_tier3_is_allowed(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--oauth-client-id",
+                "trusted",
+                "--oauth-client-secret",
+                "secret",
+                "--enable-tier3",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+    def test_unauth_remote_without_tier3_is_still_allowed(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--allow-insecure-remote",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+
 class TestConfigHardening:
     def test_allow_insecure_remote_requires_toml_boolean(self, tmp_path):
         from winremote.config import load_config

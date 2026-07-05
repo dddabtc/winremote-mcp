@@ -38,7 +38,7 @@ from winremote import __version__, desktop, network, ocr, process_mgr, recording
 from winremote.config import discover_config_path, load_config
 from winremote.security import IPAllowlistMiddleware, is_loopback_bind_host, parse_ip_allowlist, validate_fetch_url
 from winremote.taskmanager import manager as task_manager
-from winremote.tiers import ALL_TOOLS, get_tier_names, parse_tool_csv, resolve_enabled_tools
+from winremote.tiers import ALL_TOOLS, TOOL_TIERS, get_tier_names, parse_tool_csv, resolve_enabled_tools
 
 load_dotenv()
 
@@ -1829,6 +1829,27 @@ def cli(
         explicit_tools=selected_tools,
         exclude_tools=excluded_tools,
     )
+
+    exposed_tier3 = enabled_tools & TOOL_TIERS["tier3"]
+    if (
+        transport != "stdio"
+        and not is_loopback_bind_host(host)
+        and not (auth_key or configured_oauth)
+        and exposed_tier3
+    ):
+        # Tier 3 includes Shell (arbitrary PowerShell), FileWrite, RegWrite, etc.
+        # Exposing them on a non-loopback bind without authentication is
+        # equivalent to publishing pre-auth remote code execution. Refuse even
+        # when --allow-insecure-remote is set: that flag is for trusted-LAN
+        # read/interactive access, not for RCE-capable tools.
+        sample = ", ".join(sorted(exposed_tier3)[:5])
+        raise click.ClickException(
+            "Refusing to expose Tier 3 tools (" + sample + ", ...) on a "
+            "non-loopback bind without authentication. Add --auth-key, "
+            "configure OAuth, bind to 127.0.0.1, or exclude Tier 3 tools "
+            "(drop --enable-tier3/--enable-all, or use --exclude-tools)."
+        )
+
     _apply_tool_filter(enabled_tools)
     enabled_tiers = get_tier_names(enabled_tools)
 

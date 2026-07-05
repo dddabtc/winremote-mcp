@@ -173,6 +173,8 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 Starting with v0.4.20, non-loopback HTTP binds are refused unless `--auth-key` is set or `--allow-insecure-remote` is explicitly passed. Do not expose unauthenticated GUI automation on routed, shared, or internet-facing networks.
 
+Additionally, Tier 3 tools (`Shell`, `FileWrite`, `RegWrite`, `ServiceStart`, ...) are refused on non-loopback binds without authentication even when `--allow-insecure-remote` is set. Combining unauthenticated remote access with Tier 3 tools is equivalent to publishing pre-auth remote code execution, so it must be paired with `--auth-key` or an OAuth client, or restricted to loopback binds.
+
 ### Firewall Rules (Windows)
 
 ```powershell
