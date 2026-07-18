@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/dddabtc-winremote-mcp-badge.png)](https://mseep.ai/app/dddabtc-winremote-mcp)
+
 # WinRemote MCP — Run MCP Servers Remotely on Windows
 
 [中文说明](README.zh-CN.md) | [English README](README.md)
