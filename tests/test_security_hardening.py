@@ -297,6 +297,118 @@ class TestTier3RemoteHardening:
         assert result.exit_code != 0
         assert "Tier 3" in result.output
 
+    @pytest.mark.parametrize("host", ["::", "::ffff:0.0.0.0", "example.internal"])
+    def test_other_non_loopback_hosts_are_refused_before_server_start(self, monkeypatch, host):
+        from winremote import __main__ as main_module
+
+        run_calls = []
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: run_calls.append(kwargs))
+        result = CliRunner().invoke(
+            cli,
+            ["--host", host, "--allow-insecure-remote", "--tools", "Shell"],
+        )
+
+        assert result.exit_code != 0
+        assert "Tier 3" in result.output
+        assert run_calls == []
+
+    def test_config_only_remote_shell_is_refused_before_server_start(self, monkeypatch, tmp_path):
+        from winremote import __main__ as main_module
+
+        config_path = tmp_path / "winremote.toml"
+        config_path.write_text(
+            '[server]\nhost = "0.0.0.0"\nallow_insecure_remote = true\n\n[tools]\nenable = ["Shell"]\n',
+            encoding="utf-8",
+        )
+        run_calls = []
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: run_calls.append(kwargs))
+
+        result = CliRunner().invoke(cli, ["--config", str(config_path)])
+
+        assert result.exit_code != 0
+        assert "Tier 3" in result.output
+        assert run_calls == []
+
+    def test_excluding_only_shell_still_refuses_other_tier3_tools(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        result = CliRunner().invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--allow-insecure-remote",
+                "--enable-tier3",
+                "--exclude-tools",
+                "Shell",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Tier 3" in result.output
+
+    def test_excluding_all_tier3_tools_allows_remote_start(self, monkeypatch):
+        from winremote import __main__ as main_module
+        from winremote.tiers import TOOL_TIERS
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        monkeypatch.setattr(main_module, "_apply_tool_filter", lambda enabled_tools: None)
+        excluded = ",".join(sorted(TOOL_TIERS["tier3"]))
+        result = CliRunner().invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--allow-insecure-remote",
+                "--enable-tier3",
+                "--exclude-tools",
+                excluded,
+            ],
+        )
+
+        assert result.exit_code == 0
+
+    def test_partial_oauth_cannot_bypass_tier3_guard(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        result = CliRunner().invoke(
+            cli,
+            [
+                "--host",
+                "0.0.0.0",
+                "--allow-insecure-remote",
+                "--oauth-client-id",
+                "incomplete",
+                "--enable-tier3",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "OAuth requires both" in result.output
+
+    def test_stdio_with_tier3_is_allowed(self, monkeypatch):
+        from winremote import __main__ as main_module
+
+        run_calls = []
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: run_calls.append(kwargs))
+        monkeypatch.setattr(main_module, "_apply_tool_filter", lambda enabled_tools: None)
+        result = CliRunner().invoke(cli, ["--transport", "stdio", "--host", "0.0.0.0", "--enable-tier3"])
+
+        assert result.exit_code == 0
+        assert run_calls == [{"transport": "stdio"}]
+
+    @pytest.mark.parametrize("host", ["127.0.0.1", "127.0.0.2", "::1", "LocalHost", "::ffff:127.0.0.1"])
+    def test_loopback_hosts_with_tier3_are_allowed(self, monkeypatch, host):
+        from winremote import __main__ as main_module
+
+        monkeypatch.setattr(main_module.mcp, "run", lambda **kwargs: None)
+        monkeypatch.setattr(main_module, "_apply_tool_filter", lambda enabled_tools: None)
+        result = CliRunner().invoke(cli, ["--host", host, "--enable-tier3"])
+
+        assert result.exit_code == 0
+
     def test_authed_remote_with_tier3_is_allowed(self, monkeypatch):
         from winremote import __main__ as main_module
 
