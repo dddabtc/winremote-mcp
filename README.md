@@ -1,5 +1,7 @@
 # WinRemote MCP — Run MCP Servers Remotely on Windows
 
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2Fdddabtc%2Fwinremote-mcp.svg)](https://mcptoplist.com/server/glama%2Fdddabtc%2Fwinremote-mcp)
+
 [中文说明](README.zh-CN.md) | [English README](README.md)
 
 [![PyPI version](https://img.shields.io/pypi/v/winremote-mcp)](https://pypi.org/project/winremote-mcp/)
